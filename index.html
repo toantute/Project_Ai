@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Search Algorithm Visualizer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap');
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a28;
+    --border: #2a2a40;
+    --accent: #00d4ff;
+    --accent2: #ff6b35;
+    --accent3: #a855f7;
+    --text: #e2e8f0;
+    --text-dim: #64748b;
+    --start: #22c55e;
+    --goal: #ef4444;
+    --open: #3b82f6;
+    --closed: #eab308;
+    --path: #a855f7;
+    --wall: #1e293b;
+    --empty: #0f172a;
+    --weight: #f97316;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Syne', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background grid effect */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; }
+
+  /* Header */
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(10,10,15,0.9);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-size: 22px;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: -0.5px;
+  }
+
+  .logo span { font-family: 'JetBrains Mono', monospace; }
+
+  .header-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    padding: 4px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+
+  .tab-btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .tab-btn.active {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  /* Main layout */
+  .main {
+    display: flex;
+    height: calc(100vh - 57px);
+  }
+
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-track { background: transparent; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .section-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 8px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .control-group {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+    font-weight: 600;
+  }
+
+  select, input[type="range"], input[type="number"], input[type="text"], textarea {
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  select:focus, input:focus, textarea:focus { border-color: var(--accent); }
+
+  input[type="range"] {
+    padding: 0;
+    height: 4px;
+    border: none;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  textarea { resize: vertical; min-height: 60px; }
+
+  .btn {
+    padding: 8px 14px;
+    border: none;
+    border-radius: 7px;
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.3px;
+  }
+
+  .btn-primary { background: var(--accent); color: var(--bg); }
+  .btn-secondary { background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  .btn-danger { background: var(--goal); color: white; }
+  .btn-success { background: var(--start); color: white; }
+  .btn-purple { background: var(--accent3); color: white; }
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .btn-row .btn { flex: 1; min-width: 60px; font-size: 11px; padding: 7px 8px; }
+
+  /* Mode indicators */
+  .mode-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .mode-btn {
+    padding: 7px;
+    border: 2px solid var(--border);
+    border-radius: 7px;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    font-family: 'Syne', sans-serif;
+    letter-spacing: 0.5px;
+  }
+
+  .mode-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
+  .mode-btn.start-mode.active { border-color: var(--start); color: var(--start); background: rgba(34,197,94,0.08); }
+  .mode-btn.goal-mode.active { border-color: var(--goal); color: var(--goal); background: rgba(239,68,68,0.08); }
+  .mode-btn.wall-mode.active { border-color: #64748b; color: #94a3b8; background: rgba(100,116,139,0.08); }
+  .mode-btn.weight-mode.active { border-color: var(--weight); color: var(--weight); background: rgba(249,115,22,0.08); }
+
+  /* Legend */
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: var(--text-dim);
+  }
+
+  .legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* Content area */
+  .content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Grids area */
+  .grids-area {
+    flex: 1;
+    display: flex;
+    gap: 0;
+    overflow: hidden;
+  }
+
+  .grid-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-right: 1px solid var(--border);
+  }
+
+  .grid-panel:last-child { border-right: none; }
+
+  .panel-header {
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  .panel-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .algo-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+  }
+
+  .badge-bfs { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(59,130,246,0.4); }
+  .badge-dfs { background: rgba(239,68,68,0.2); color: #f87171; border: 1px solid rgba(239,68,68,0.4); }
+  .badge-ucs { background: rgba(234,179,8,0.2); color: #fbbf24; border: 1px solid rgba(234,179,8,0.4); }
+  .badge-gbfs { background: rgba(168,85,247,0.2); color: #c084fc; border: 1px solid rgba(168,85,247,0.4); }
+  .badge-astar { background: rgba(0,212,255,0.2); color: #22d3ee; border: 1px solid rgba(0,212,255,0.4); }
+
+  .panel-stats {
+    margin-left: auto;
+    display: flex;
+    gap: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+  }
+
+  .stat { color: var(--text-dim); }
+  .stat span { color: var(--text); font-weight: 600; }
+
+  .grid-wrapper {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: auto;
+    padding: 12px;
+    background: var(--bg);
+  }
+
+  canvas {
+    cursor: crosshair;
+    image-rendering: pixelated;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  /* Animation controls bar */
+  .controls-bar {
+    padding: 10px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .controls-bar .btn { padding: 8px 16px; font-size: 12px; }
+
+  .speed-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
+  .speed-control input { width: 100px; }
+
+  /* Bottom stats comparison */
+  .comparison-bar {
+    padding: 12px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 16px;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .comp-stats {
+    display: flex;
+    gap: 16px;
+  }
+
+  .comp-stat {
+    text-align: center;
+  }
+
+  .comp-stat-value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .comp-stat-label {
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  .comp-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .vs-badge {
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .winner-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 10px;
+    font-weight: 700;
+    background: rgba(34,197,94,0.15);
+    color: var(--start);
+    border: 1px solid rgba(34,197,94,0.3);
+  }
+
+  /* Heuristic panel */
+  .heuristic-panel {
+    display: none;
+  }
+
+  .heuristic-tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--surface);
+    padding: 4px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+  }
+
+  .htab {
+    flex: 1;
+    padding: 5px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+
+  .htab.active { background: var(--accent); color: var(--bg); }
+
+  /* Chart panel */
+  .chart-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .chart-overlay.show { display: flex; }
+
+  .chart-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 24px;
+    width: 600px;
+    max-width: 90vw;
+  }
+
+  .chart-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .chart-canvas-wrap {
+    position: relative;
+    height: 250px;
+  }
+
+  .status-msg {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    transition: all 0.3s;
+  }
+
+  .status-running { background: rgba(0,212,255,0.15); color: var(--accent); border: 1px solid rgba(0,212,255,0.3); }
+  .status-done { background: rgba(34,197,94,0.15); color: var(--start); border: 1px solid rgba(34,197,94,0.3); }
+  .status-none { background: rgba(100,116,139,0.15); color: var(--text-dim); border: 1px solid rgba(100,116,139,0.3); }
+  .status-no-path { background: rgba(239,68,68,0.15); color: var(--goal); border: 1px solid rgba(239,68,68,0.3); }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 300;
+    transform: translateY(20px);
+    opacity: 0;
+    transition: all 0.3s;
+  }
+
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* 3-algo mode */
+  .three-mode .grid-panel { flex: 0 0 calc(33.333% - 1px); }
+
+  /* Responsive */
+  @media (max-width: 900px) {
+    .sidebar { width: 240px; min-width: 240px; }
+    .comparison-bar { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo"><span>{ AI }</span> Search Visualizer</div>
+    <div class="header-tabs">
+      <button class="tab-btn active" onclick="setMode('single')">Single</button>
+      <button class="tab-btn" onclick="setMode('compare')">Compare 2</button>
+      <button class="tab-btn" onclick="setMode('triple')">Compare 3</button>
+    </div>
+    <div style="margin-left: auto; display: flex; gap: 8px;">
+      <button class="btn btn-secondary" onclick="showChart()" style="font-size:11px">📊 Chart</button>
+      <button class="btn btn-secondary" onclick="exportResults()" style="font-size:11px">💾 Export</button>
+    </div>
+  </header>
+
+  <div class="main">
+    <!-- Sidebar -->
+    <div class="sidebar">
+
+      <!-- Grid settings -->
+      <div class="control-group">
+        <div class="section-title">Grid Settings</div>
+        <label>Size: <span id="sizeVal">20</span>×<span id="sizeVal2">20</span></label>
+        <input type="range" id="gridSize" min="8" max="40" value="20" oninput="onGridSizeChange(this.value)">
+        <div style="height:8px"></div>
+        <label>Algo 1</label>
+        <select id="algo1" onchange="updateAlgoBadge(0)">
+          <option value="bfs">BFS — Breadth First Search</option>
+          <option value="dfs">DFS — Depth First Search</option>
+          <option value="ucs">UCS — Uniform Cost Search</option>
+          <option value="gbfs">Greedy Best First Search</option>
+          <option value="astar" selected>A* Search</option>
+        </select>
+        <div id="algo2row" style="margin-top:8px">
+          <label>Algo 2</label>
+          <select id="algo2" onchange="updateAlgoBadge(1)">
+            <option value="bfs" selected>BFS — Breadth First Search</option>
+            <option value="dfs">DFS — Depth First Search</option>
+            <option value="ucs">UCS — Uniform Cost Search</option>
+            <option value="gbfs">Greedy Best First Search</option>
+            <option value="astar">A* Search</option>
+          </select>
+        </div>
+        <div id="algo3row" style="margin-top:8px;display:none">
+          <label>Algo 3</label>
+          <select id="algo3">
+            <option value="bfs">BFS</option>
+            <option value="dfs" selected>DFS</option>
+            <option value="ucs">UCS</option>
+            <option value="gbfs">Greedy</option>
+            <option value="astar">A*</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Edit mode -->
+      <div class="control-group">
+        <div class="section-title">Edit Mode</div>
+        <div class="mode-btns">
+          <button class="mode-btn start-mode active" onclick="setEditMode('start')" id="modeStart">🟢 Start</button>
+          <button class="mode-btn goal-mode" onclick="setEditMode('goal')" id="modeGoal">🔴 Goal</button>
+          <button class="mode-btn wall-mode" onclick="setEditMode('wall')" id="modeWall">⬛ Wall</button>
+          <button class="mode-btn" onclick="setEditMode('erase')" id="modeErase">🧹 Erase</button>
+          <button class="mode-btn weight-mode" onclick="setEditMode('weight')" id="modeWeight">⚖️ Weight</button>
+          <button class="mode-btn" onclick="setEditMode('none')" id="modeNone">🖱️ Drag</button>
+        </div>
+        <div style="height:8px"></div>
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="randomMaze()">🎲 Maze</button>
+          <button class="btn btn-secondary" onclick="clearWalls()">🗑️ Clear</button>
+          <button class="btn btn-secondary" onclick="resetGrid()">↺ Reset</button>
+        </div>
+      </div>
+
+      <!-- Heuristic -->
+      <div class="control-group">
+        <div class="section-title">Heuristic Function</div>
+        <div class="heuristic-tabs">
+          <button class="htab active" onclick="setHeuristicMode('preset',this)">Preset</button>
+          <button class="htab" onclick="setHeuristicMode('custom',this)">Custom</button>
+          <button class="htab" onclick="setHeuristicMode('table',this)">Table</button>
+        </div>
+        <div id="hPreset">
+          <select id="heuristicPreset">
+            <option value="manhattan">Manhattan Distance</option>
+            <option value="euclidean">Euclidean Distance</option>
+            <option value="chebyshev">Chebyshev Distance</option>
+            <option value="zero">Zero (Dijkstra-like)</option>
+          </select>
+        </div>
+        <div id="hCustom" style="display:none">
+          <label>Formula (use x,y,goal_x,goal_y):</label>
+          <input type="text" id="customHeuristic" value="Math.abs(x-goal_x)+Math.abs(y-goal_y)" placeholder="abs(x-goal_x)+abs(y-goal_y)">
+          <div style="font-size:10px;color:var(--text-dim);margin-top:4px">Variables: x, y, goal_x, goal_y</div>
+          <button class="btn btn-secondary" onclick="testHeuristic()" style="margin-top:6px;width:100%">Test Formula</button>
+        </div>
+        <div id="hTable" style="display:none">
+          <label>Manual h(n) table (row,col=value):</label>
+          <textarea id="hTableInput" placeholder="0,0=5&#10;0,1=4&#10;..."></textarea>
+          <button class="btn btn-secondary" onclick="parseHTable()" style="margin-top:6px;width:100%">Apply Table</button>
+        </div>
+      </div>
+
+      <!-- Legend -->
+      <div class="control-group">
+        <div class="section-title">Legend</div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--start)"></div>Start</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--goal)"></div>Goal</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--open)"></div>Frontier</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--closed)"></div>Visited</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--path)"></div>Path</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--wall)"></div>Wall</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--weight)"></div>Weight</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--empty)"></div>Empty</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Content -->
+    <div class="content">
+      <div class="grids-area" id="gridsArea">
+        <!-- Panel 1 -->
+        <div class="grid-panel" id="panel0">
+          <div class="panel-header">
+            <span class="panel-title">Algorithm 1</span>
+            <span class="algo-badge badge-astar" id="badge0">A*</span>
+            <div class="panel-stats">
+              <div class="stat">Expanded: <span id="expanded0">0</span></div>
+              <div class="stat">Cost: <span id="cost0">—</span></div>
+              <div class="stat">Steps: <span id="steps0">0</span></div>
+            </div>
+            <div id="status0" class="status-msg status-none" style="margin-left:8px">READY</div>
+          </div>
+          <div class="grid-wrapper">
+            <canvas id="canvas0"></canvas>
+          </div>
+        </div>
+
+        <!-- Panel 2 -->
+        <div class="grid-panel" id="panel1" style="display:none">
+          <div class="panel-header">
+            <span class="panel-title">Algorithm 2</span>
+            <span class="algo-badge badge-bfs" id="badge1">BFS</span>
+            <div class="panel-stats">
+              <div class="stat">Expanded: <span id="expanded1">0</span></div>
+              <div class="stat">Cost: <span id="cost1">—</span></div>
+              <div class="stat">Steps: <span id="steps1">0</span></div>
+            </div>
+            <div id="status1" class="status-msg status-none" style="margin-left:8px">READY</div>
+          </div>
+          <div class="grid-wrapper">
+            <canvas id="canvas1"></canvas>
+          </div>
+        </div>
+
+        <!-- Panel 3 -->
+        <div class="grid-panel" id="panel2" style="display:none">
+          <div class="panel-header">
+            <span class="panel-title">Algorithm 3</span>
+            <span class="algo-badge badge-dfs" id="badge2">DFS</span>
+            <div class="panel-stats">
+              <div class="stat">Expanded: <span id="expanded2">0</span></div>
+              <div class="stat">Cost: <span id="cost2">—</span></div>
+              <div class="stat">Steps: <span id="steps2">0</span></div>
+            </div>
+            <div id="status2" class="status-msg status-none" style="margin-left:8px">READY</div>
+          </div>
+          <div class="grid-wrapper">
+            <canvas id="canvas2"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Controls bar -->
+      <div class="controls-bar">
+        <button class="btn btn-success" id="btnStart" onclick="startAll()">▶ Start</button>
+        <button class="btn btn-secondary" id="btnPause" onclick="pauseAll()" disabled>⏸ Pause</button>
+        <button class="btn btn-secondary" id="btnResume" onclick="resumeAll()" disabled>▶ Resume</button>
+        <button class="btn btn-primary" id="btnStep" onclick="stepAll()">⏭ Step</button>
+        <button class="btn btn-danger" onclick="resetAll()">⟳ Reset</button>
+        <div class="speed-control">
+          <span>Speed:</span>
+          <input type="range" id="speedSlider" min="1" max="10" value="5">
+          <span id="speedVal">5</span>
+        </div>
+      </div>
+
+      <!-- Comparison bar -->
+      <div class="comparison-bar" id="compBar" style="display:none">
+        <div class="comp-stats" id="compLeft">
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cExpanded0">0</div>
+            <div class="comp-stat-label">Expanded</div>
+          </div>
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cCost0">—</div>
+            <div class="comp-stat-label">Path Cost</div>
+          </div>
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cTime0">—</div>
+            <div class="comp-stat-label">Time (ms)</div>
+          </div>
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cOptimal0">?</div>
+            <div class="comp-stat-label">Optimal?</div>
+          </div>
+        </div>
+        <div class="comp-center">
+          <div class="vs-badge">VS</div>
+          <div class="winner-badge" id="winnerBadge">—</div>
+        </div>
+        <div class="comp-stats" id="compRight" style="justify-content:flex-end">
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cExpanded1">0</div>
+            <div class="comp-stat-label">Expanded</div>
+          </div>
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cCost1">—</div>
+            <div class="comp-stat-label">Path Cost</div>
+          </div>
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cTime1">—</div>
+            <div class="comp-stat-label">Time (ms)</div>
+          </div>
+          <div class="comp-stat">
+            <div class="comp-stat-value" id="cOptimal1">?</div>
+            <div class="comp-stat-label">Optimal?</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart modal -->
+<div class="chart-overlay" id="chartOverlay" onclick="closeChart(event)">
+  <div class="chart-modal">
+    <div class="chart-title">
+      <span>📊 Expanded Nodes Comparison</span>
+      <button class="btn btn-secondary" onclick="closeChart(null)" style="padding:4px 10px;font-size:11px">✕</button>
+    </div>
+    <div class="chart-canvas-wrap">
+      <canvas id="chartCanvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================
+// STATE MANAGEMENT
+// =====================================================
+const AppState = {
+  mode: 'single', // single | compare | triple
+  editMode: 'start',
+  gridSize: 20,
+  heuristicMode: 'preset',
+  customHeuristic: 'Math.abs(x-goal_x)+Math.abs(y-goal_y)',
+  hTable: {},
+  animRunning: false,
+  animPaused: false,
+  speed: 5,
+  panelCount: 1
+};
+
+// Grid shared state
+const Grid = {
+  cells: [], // 2D array: 0=empty, 1=wall, N>1=weight
+  startRow: 2, startCol: 2,
+  goalRow: 17, goalCol: 17,
+  size: 20
+};
+
+// Per-algorithm state
+const AlgoStates = [null, null, null];
+const AlgoTimers = [null, null, null];
+const AlgoTimes = [0, 0, 0];
+
+// Canvas references
+const canvases = [null, null, null];
+const ctxs = [null, null, null];
+
+// =====================================================
+// NODE STRUCTURE
+// =====================================================
+class SearchNode {
+  constructor(row, col, g = 0, h = 0, parent = null) {
+    this.row = row;
+    this.col = col;
+    this.x = col;
+    this.y = row;
+    this.g = g;        // cost from start
+    this.h = h;        // heuristic
+    this.f = g + h;    // total
+    this.parent = parent;
+  }
+}
+
+// =====================================================
+// ALGORITHM LOGIC MODULE
+// =====================================================
+const Algorithms = {
+
+  // Initialize algorithm state
+  init(algoName, grid, startR, startC, goalR, goalC, heuristicFn) {
+    const state = {
+      name: algoName,
+      grid, startR, startC, goalR, goalC,
+      heuristicFn,
+      open: [],       // frontier
+      closed: new Set(), // visited (as "r,c" strings)
+      openSet: new Set(),
+      parentMap: {},
+      gMap: {},
+      expandedCount: 0,
+      pathCost: null,
+      path: [],
+      done: false,
+      found: false,
+      currentNode: null
+    };
+
+    const startNode = new SearchNode(startR, startC, 0, heuristicFn(startR, startC), null);
+    state.open.push(startNode);
+    state.openSet.add(`${startR},${startC}`);
+    state.gMap[`${startR},${startC}`] = 0;
+    state.parentMap[`${startR},${startC}`] = null;
+    return state;
+  },
+
+  // Single step
+  step(state) {
+    if (state.done || state.open.length === 0) {
+      state.done = true;
+      return null;
+    }
+
+    let node;
+    switch (state.name) {
+      case 'bfs':   node = this._bfsStep(state); break;
+      case 'dfs':   node = this._dfsStep(state); break;
+      case 'ucs':   node = this._ucsStep(state); break;
+      case 'gbfs':  node = this._gbfsStep(state); break;
+      case 'astar': node = this._astarStep(state); break;
+      default:      node = this._astarStep(state);
+    }
+
+    if (!node) { state.done = true; return null; }
+
+    state.currentNode = node;
+    const key = `${node.row},${node.col}`;
+    state.closed.add(key);
+    state.openSet.delete(key);
+    state.expandedCount++;
+
+    // Check goal
+    if (node.row === state.goalR && node.col === state.goalC) {
+      state.done = true;
+      state.found = true;
+      state.path = this._reconstructPath(state, node);
+      state.pathCost = node.g;
+      return node;
+    }
+
+    // Expand neighbors
+    const neighbors = this._getNeighbors(node, state);
+    for (const nb of neighbors) {
+      const nbKey = `${nb.row},${nb.col}`;
+      if (state.closed.has(nbKey)) continue;
+
+      const newG = node.g + this._moveCost(node, nb, state);
+      const existing = state.gMap[nbKey];
+
+      if (existing === undefined || newG < existing) {
+        nb.g = newG;
+        nb.h = state.heuristicFn(nb.row, nb.col);
+        nb.f = nb.g + nb.h;
+        nb.parent = node;
+        state.gMap[nbKey] = newG;
+        state.parentMap[nbKey] = node;
+
+        if (!state.openSet.has(nbKey)) {
+          state.open.push(nb);
+          state.openSet.add(nbKey);
+        }
+      }
+    }
+
+    return node;
+  },
+
+  _bfsStep(state) {
+    // FIFO
+    return state.open.shift();
+  },
+
+  _dfsStep(state) {
+    // LIFO
+    return state.open.pop();
+  },
+
+  _ucsStep(state) {
+    // Min g(n)
+    let minIdx = 0;
+    for (let i = 1; i < state.open.length; i++) {
+      if (state.open[i].g < state.open[minIdx].g) minIdx = i;
+    }
+    return state.open.splice(minIdx, 1)[0];
+  },
+
+  _gbfsStep(state) {
+    // Min h(n)
+    let minIdx = 0;
+    for (let i = 1; i < state.open.length; i++) {
+      if (state.open[i].h < state.open[minIdx].h) minIdx = i;
+    }
+    return state.open.splice(minIdx, 1)[0];
+  },
+
+  _astarStep(state) {
+    // Min f(n) = g + h
+    let minIdx = 0;
+    for (let i = 1; i < state.open.length; i++) {
+      if (state.open[i].f < state.open[minIdx].f) minIdx = i;
+    }
+    return state.open.splice(minIdx, 1)[0];
+  },
+
+  _getNeighbors(node, state) {
+    const dirs = [[-1,0],[1,0],[0,-1],[0,1]];
+    const result = [];
+    for (const [dr, dc] of dirs) {
+      const r = node.row + dr, c = node.col + dc;
+      if (r < 0 || r >= state.grid.size || c < 0 || c >= state.grid.size) continue;
+      if (state.grid.cells[r][c] === 1) continue;
+      result.push(new SearchNode(r, c));
+    }
+    return result;
+  },
+
+  _moveCost(from, to, state) {
+    const w = state.grid.cells[to.row][to.col];
+    return w > 1 ? w : 1;
+  },
+
+  _reconstructPath(state, goalNode) {
+    const path = [];
+    let key = `${goalNode.row},${goalNode.col}`;
+    while (key !== null && state.parentMap[key] !== undefined) {
+      const [r, c] = key.split(',').map(Number);
+      path.unshift({ row: r, col: c });
+      const parent = state.parentMap[key];
+      key = parent ? `${parent.row},${parent.col}` : null;
+    }
+    return path;
+  }
+};
+
+// =====================================================
+// HEURISTIC MODULE
+// =====================================================
+const Heuristics = {
+  get(goalR, goalC) {
+    const mode = AppState.heuristicMode;
+    if (mode === 'preset') {
+      return this.getPreset(document.getElementById('heuristicPreset').value, goalR, goalC);
+    } else if (mode === 'custom') {
+      return this.getCustom(AppState.customHeuristic, goalR, goalC);
+    } else {
+      return this.getTable(goalR, goalC);
+    }
+  },
+
+  getPreset(type, goalR, goalC) {
+    return (r, c) => {
+      switch (type) {
+        case 'manhattan':  return Math.abs(r - goalR) + Math.abs(c - goalC);
+        case 'euclidean':  return Math.sqrt((r-goalR)**2 + (c-goalC)**2);
+        case 'chebyshev':  return Math.max(Math.abs(r-goalR), Math.abs(c-goalC));
+        case 'zero':       return 0;
+        default:           return Math.abs(r - goalR) + Math.abs(c - goalC);
+      }
+    };
+  },
+
+  getCustom(formula, goalR, goalC) {
+    return (r, c) => {
+      try {
+        // Safe evaluation with limited scope
+        const x = c, y = r, goal_x = goalC, goal_y = goalR;
+        const safeFn = new Function('x','y','goal_x','goal_y','Math',
+          `"use strict"; return (${formula});`);
+        const val = safeFn(x, y, goal_x, goal_y, Math);
+        return typeof val === 'number' && isFinite(val) ? Math.max(0, val) : 0;
+      } catch(e) { return 0; }
+    };
+  },
+
+  getTable(goalR, goalC) {
+    return (r, c) => {
+      const key = `${r},${c}`;
+      if (AppState.hTable[key] !== undefined) return AppState.hTable[key];
+      return Math.abs(r - goalR) + Math.abs(c - goalC);
+    };
+  }
+};
+
+// =====================================================
+// GRID INITIALIZATION
+// =====================================================
+function initGrid(size) {
+  Grid.size = size;
+  Grid.cells = Array.from({length: size}, () => new Array(size).fill(0));
+  Grid.startRow = Math.floor(size * 0.1);
+  Grid.startCol = Math.floor(size * 0.1);
+  Grid.goalRow = Math.floor(size * 0.85);
+  Grid.goalCol = Math.floor(size * 0.85);
+}
+
+function resetGrid() {
+  initGrid(AppState.gridSize);
+  resetAll();
+  drawAll();
+}
+
+function clearWalls() {
+  for (let r = 0; r < Grid.size; r++)
+    for (let c = 0; c < Grid.size; c++)
+      if (Grid.cells[r][c] !== 0) Grid.cells[r][c] = 0;
+  resetAll();
+  drawAll();
+}
+
+function randomMaze() {
+  clearWalls();
+  const density = 0.3;
+  for (let r = 0; r < Grid.size; r++) {
+    for (let c = 0; c < Grid.size; c++) {
+      if ((r === Grid.startRow && c === Grid.startCol) ||
+          (r === Grid.goalRow && c === Grid.goalCol)) continue;
+      if (Math.random() < density) Grid.cells[r][c] = 1;
+    }
+  }
+  resetAll();
+  drawAll();
+}
+
+// =====================================================
+// RENDERING MODULE
+// =====================================================
+const CELL_PADDING = 1;
+
+function setupCanvases() {
+  for (let i = 0; i < 3; i++) {
+    canvases[i] = document.getElementById(`canvas${i}`);
+    ctxs[i] = canvases[i].getContext('2d');
+    canvases[i].addEventListener('mousedown', (e) => onMouseDown(e, i));
+    canvases[i].addEventListener('mousemove', (e) => onMouseMove(e, i));
+    canvases[i].addEventListener('mouseup', () => mouseDown = false);
+    canvases[i].addEventListener('mouseleave', () => mouseDown = false);
+  }
+}
+
+function getCellSize(canvasIdx) {
+  const wrapper = canvases[canvasIdx].parentElement;
+  const wrapW = wrapper.clientWidth - 24;
+  const wrapH = wrapper.clientHeight - 24;
+  const cs = Math.floor(Math.min(wrapW, wrapH) / Grid.size);
+  return Math.max(cs, 4);
+}
+
+function resizeCanvases() {
+  for (let i = 0; i < 3; i++) {
+    const cs = getCellSize(i);
+    canvases[i].width = cs * Grid.size;
+    canvases[i].height = cs * Grid.size;
+  }
+}
+
+function getNodeColor(r, c, algoState) {
+  if (r === Grid.startRow && c === Grid.startCol) return '#22c55e';
+  if (r === Grid.goalRow && c === Grid.goalCol) return '#ef4444';
+  if (Grid.cells[r][c] === 1) return '#1e293b';
+  if (Grid.cells[r][c] > 1) {
+    // Weight cell - orange tint scaled by weight
+    const alpha = Math.min(0.8, Grid.cells[r][c] * 0.15);
+    return `rgba(249,115,22,${alpha})`;
+  }
+
+  if (!algoState) return '#0f172a';
+
+  const key = `${r},${c}`;
+
+  // Path
+  if (algoState.found) {
+    for (const p of algoState.path) {
+      if (p.row === r && p.col === c) return '#a855f7';
+    }
+  }
+
+  // Current node
+  if (algoState.currentNode && algoState.currentNode.row === r && algoState.currentNode.col === c)
+    return '#60a5fa';
+
+  if (algoState.closed.has(key)) return '#ca8a04';
+  if (algoState.openSet.has(key)) return '#3b82f6';
+
+  return '#0f172a';
+}
+
+function drawGrid(idx) {
+  const canvas = canvases[idx];
+  const ctx = ctxs[idx];
+  const cs = getCellSize(idx);
+  const state = AlgoStates[idx];
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let r = 0; r < Grid.size; r++) {
+    for (let c = 0; c < Grid.size; c++) {
+      const color = getNodeColor(r, c, state);
+      ctx.fillStyle = color;
+      ctx.fillRect(c*cs + CELL_PADDING, r*cs + CELL_PADDING,
+                   cs - CELL_PADDING*2, cs - CELL_PADDING*2);
+
+      // Draw weight number
+      if (Grid.cells[r][c] > 1 && cs >= 14) {
+        ctx.fillStyle = 'rgba(249,115,22,0.9)';
+        ctx.font = `bold ${Math.min(cs-4,11)}px JetBrains Mono`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(Grid.cells[r][c], c*cs + cs/2, r*cs + cs/2);
+      }
+
+      // Draw h value for informed search
+      if (state && cs >= 18 && (state.name === 'astar' || state.name === 'gbfs')) {
+        if (state.openSet.has(`${r},${c}`) || state.closed.has(`${r},${c}`)) {
+          const h = Math.round(state.heuristicFn(r,c));
+          ctx.fillStyle = 'rgba(255,255,255,0.5)';
+          ctx.font = `${Math.min(cs-8,8)}px JetBrains Mono`;
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(h, c*cs + cs - 2, r*cs + cs - 1);
+        }
+      }
+    }
+  }
+
+  // Draw grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= Grid.size; i++) {
+    ctx.beginPath(); ctx.moveTo(i*cs, 0); ctx.lineTo(i*cs, canvas.height); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i*cs); ctx.lineTo(canvas.width, i*cs); ctx.stroke();
+  }
+}
+
+function drawAll() {
+  resizeCanvases();
+  for (let i = 0; i < AppState.panelCount; i++) drawGrid(i);
+}
+
+// =====================================================
+// MOUSE INTERACTION
+// =====================================================
+let mouseDown = false;
+let lastEditCell = null;
+
+function getCellFromEvent(e, idx) {
+  const canvas = canvases[idx];
+  const rect = canvas.getBoundingClientRect();
+  const cs = getCellSize(idx);
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  return { r: Math.floor(y / cs), c: Math.floor(x / cs) };
+}
+
+function onMouseDown(e, idx) {
+  // Only allow editing on canvas 0 (master grid)
+  if (idx !== 0) return;
+  mouseDown = true;
+  lastEditCell = null;
+  const { r, c } = getCellFromEvent(e, 0);
+  editCell(r, c);
+}
+
+function onMouseMove(e, idx) {
+  if (!mouseDown || idx !== 0) return;
+  const { r, c } = getCellFromEvent(e, 0);
+  const key = `${r},${c}`;
+  if (lastEditCell === key) return;
+  lastEditCell = key;
+  editCell(r, c);
+}
+
+function editCell(r, c) {
+  if (r < 0 || r >= Grid.size || c < 0 || c >= Grid.size) return;
+  const mode = AppState.editMode;
+
+  if (mode === 'start') {
+    Grid.startRow = r; Grid.startCol = c;
+    resetAll(); drawAll();
+  } else if (mode === 'goal') {
+    Grid.goalRow = r; Grid.goalCol = c;
+    resetAll(); drawAll();
+  } else if (mode === 'wall') {
+    if (!(r === Grid.startRow && c === Grid.startCol) &&
+        !(r === Grid.goalRow && c === Grid.goalCol)) {
+      Grid.cells[r][c] = 1;
+      drawAll();
+    }
+  } else if (mode === 'erase') {
+    Grid.cells[r][c] = 0;
+    drawAll();
+  } else if (mode === 'weight') {
+    if (!(r === Grid.startRow && c === Grid.startCol) &&
+        !(r === Grid.goalRow && c === Grid.goalCol) &&
+        Grid.cells[r][c] !== 1) {
+      Grid.cells[r][c] = Grid.cells[r][c] >= 5 ? 0 : (Grid.cells[r][c] || 0) + 1;
+      drawAll();
+    }
+  }
+}
+
+// =====================================================
+// ANIMATION CONTROL
+// =====================================================
+function initAlgoState(idx) {
+  const algoName = ['algo1','algo2','algo3'][idx];
+  const algoEl = document.getElementById(algoName);
+  const name = algoEl ? algoEl.value : 'astar';
+  const hFn = Heuristics.get(Grid.goalRow, Grid.goalCol);
+  AlgoStates[idx] = Algorithms.init(name, Grid, Grid.startRow, Grid.startCol, Grid.goalRow, Grid.goalCol, hFn);
+  AlgoTimes[idx] = performance.now();
+}
+
+function startAll() {
+  for (let i = 0; i < AppState.panelCount; i++) initAlgoState(i);
+  AppState.animRunning = true;
+  AppState.animPaused = false;
+  updateControlBtns();
+  for (let i = 0; i < AppState.panelCount; i++) scheduleStep(i);
+}
+
+function pauseAll() {
+  AppState.animPaused = true;
+  for (let i = 0; i < 3; i++) {
+    if (AlgoTimers[i]) { clearTimeout(AlgoTimers[i]); AlgoTimers[i] = null; }
+  }
+  updateControlBtns();
+}
+
+function resumeAll() {
+  AppState.animPaused = false;
+  for (let i = 0; i < AppState.panelCount; i++) {
+    if (AlgoStates[i] && !AlgoStates[i].done) scheduleStep(i);
+  }
+  updateControlBtns();
+}
+
+function stepAll() {
+  if (!AlgoStates[0]) {
+    for (let i = 0; i < AppState.panelCount; i++) initAlgoState(i);
+  }
+  for (let i = 0; i < AppState.panelCount; i++) {
+    if (AlgoStates[i] && !AlgoStates[i].done) {
+      Algorithms.step(AlgoStates[i]);
+      updateStats(i);
+    }
+  }
+  drawAll();
+  updateCompare();
+}
+
+function resetAll() {
+  AppState.animRunning = false;
+  AppState.animPaused = false;
+  for (let i = 0; i < 3; i++) {
+    if (AlgoTimers[i]) { clearTimeout(AlgoTimers[i]); AlgoTimers[i] = null; }
+    AlgoStates[i] = null;
+    AlgoTimes[i] = 0;
+    updateStatsReset(i);
+  }
+  updateControlBtns();
+  drawAll();
+  document.getElementById('winnerBadge').textContent = '—';
+}
+
+function scheduleStep(idx) {
+  if (AppState.animPaused) return;
+  const state = AlgoStates[idx];
+  if (!state || state.done) {
+    checkAllDone();
+    return;
+  }
+  const delay = Math.max(10, 300 / AppState.speed);
+  AlgoTimers[idx] = setTimeout(() => {
+    if (AppState.animPaused) return;
+    Algorithms.step(state);
+    drawGrid(idx);
+    updateStats(idx);
+    updateCompare();
+    scheduleStep(idx);
+  }, delay);
+}
+
+function checkAllDone() {
+  const allDone = Array.from({length: AppState.panelCount}, (_,i) => i)
+    .every(i => !AlgoStates[i] || AlgoStates[i].done);
+  if (allDone && AppState.animRunning) {
+    AppState.animRunning = false;
+    updateControlBtns();
+    updateCompare();
+    determineWinner();
+  }
+}
+
+function determineWinner() {
+  if (AppState.panelCount < 2) return;
+  const s0 = AlgoStates[0], s1 = AlgoStates[1];
+  if (!s0 || !s1) return;
+  const names = [document.getElementById('algo1').value.toUpperCase(),
+                 document.getElementById('algo2').value.toUpperCase()];
+  if (s0.found && s1.found) {
+    if (s0.pathCost < s1.pathCost) document.getElementById('winnerBadge').textContent = `${names[0]} wins (cost)`;
+    else if (s1.pathCost < s0.pathCost) document.getElementById('winnerBadge').textContent = `${names[1]} wins (cost)`;
+    else if (s0.expandedCount <= s1.expandedCount) document.getElementById('winnerBadge').textContent = `${names[0]} wins (efficiency)`;
+    else document.getElementById('winnerBadge').textContent = `${names[1]} wins (efficiency)`;
+  } else if (s0.found) document.getElementById('winnerBadge').textContent = `${names[0]} found path`;
+  else if (s1.found) document.getElementById('winnerBadge').textContent = `${names[1]} found path`;
+  else document.getElementById('winnerBadge').textContent = 'No path found';
+}
+
+function updateControlBtns() {
+  document.getElementById('btnStart').disabled = AppState.animRunning;
+  document.getElementById('btnPause').disabled = !AppState.animRunning || AppState.animPaused;
+  document.getElementById('btnResume').disabled = !AppState.animPaused;
+}
+
+function updateStats(idx) {
+  const s = AlgoStates[idx];
+  if (!s) return;
+  document.getElementById(`expanded${idx}`).textContent = s.expandedCount;
+  document.getElementById(`cost${idx}`).textContent = s.found ? s.pathCost.toFixed(1) : (s.done ? '✗' : '—');
+  document.getElementById(`steps${idx}`).textContent = s.expandedCount;
+
+  const elapsed = ((performance.now() - AlgoTimes[idx]) / 1000).toFixed(2);
+  const statusEl = document.getElementById(`status${idx}`);
+  if (s.done && s.found) {
+    statusEl.textContent = `FOUND (${elapsed}s)`;
+    statusEl.className = 'status-msg status-done';
+  } else if (s.done && !s.found) {
+    statusEl.textContent = 'NO PATH';
+    statusEl.className = 'status-msg status-no-path';
+  } else {
+    statusEl.textContent = 'RUNNING';
+    statusEl.className = 'status-msg status-running';
+  }
+}
+
+function updateStatsReset(idx) {
+  document.getElementById(`expanded${idx}`).textContent = '0';
+  document.getElementById(`cost${idx}`).textContent = '—';
+  document.getElementById(`steps${idx}`).textContent = '0';
+  const statusEl = document.getElementById(`status${idx}`);
+  statusEl.textContent = 'READY';
+  statusEl.className = 'status-msg status-none';
+}
+
+function updateCompare() {
+  if (AppState.panelCount < 2) return;
+  for (let i = 0; i < 2; i++) {
+    const s = AlgoStates[i];
+    if (!s) continue;
+    document.getElementById(`cExpanded${i}`).textContent = s.expandedCount;
+    document.getElementById(`cCost${i}`).textContent = s.found ? s.pathCost.toFixed(1) : (s.done ? '✗' : '—');
+    const elapsed = AlgoTimes[i] ? ((performance.now() - AlgoTimes[i])).toFixed(0) : '—';
+    document.getElementById(`cTime${i}`).textContent = s.done ? elapsed : '...';
+    const isOptimal = s.name === 'astar' || s.name === 'ucs' || s.name === 'bfs';
+    document.getElementById(`cOptimal${i}`).textContent = s.found ? (isOptimal ? '✓' : '~') : '—';
+  }
+}
+
+// =====================================================
+// UI CONTROLS
+// =====================================================
+function setMode(mode) {
+  AppState.mode = mode;
+  resetAll();
+
+  // Update tab buttons
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+
+  // Show/hide panels
+  const p1 = document.getElementById('panel1');
+  const p2 = document.getElementById('panel2');
+  const a2row = document.getElementById('algo2row');
+  const a3row = document.getElementById('algo3row');
+  const compBar = document.getElementById('compBar');
+
+  if (mode === 'single') {
+    p1.style.display = 'none';
+    p2.style.display = 'none';
+    a2row.style.display = 'none';
+    a3row.style.display = 'none';
+    compBar.style.display = 'none';
+    AppState.panelCount = 1;
+  } else if (mode === 'compare') {
+    p1.style.display = 'flex';
+    p2.style.display = 'none';
+    a2row.style.display = 'block';
+    a3row.style.display = 'none';
+    compBar.style.display = 'grid';
+    AppState.panelCount = 2;
+  } else {
+    p1.style.display = 'flex';
+    p2.style.display = 'flex';
+    a2row.style.display = 'block';
+    a3row.style.display = 'block';
+    compBar.style.display = 'none';
+    AppState.panelCount = 3;
+  }
+
+  setTimeout(drawAll, 50);
+}
+
+function setEditMode(mode) {
+  AppState.editMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('mode' + mode.charAt(0).toUpperCase() + mode.slice(1))?.classList.add('active');
+}
+
+function onGridSizeChange(val) {
+  AppState.gridSize = parseInt(val);
+  document.getElementById('sizeVal').textContent = val;
+  document.getElementById('sizeVal2').textContent = val;
+  initGrid(AppState.gridSize);
+  resetAll();
+  drawAll();
+}
+
+function updateAlgoBadge(idx) {
+  const names = { bfs:'BFS', dfs:'DFS', ucs:'UCS', gbfs:'GBFS', astar:'A*' };
+  const classes = { bfs:'badge-bfs', dfs:'badge-dfs', ucs:'badge-ucs', gbfs:'badge-gbfs', astar:'badge-astar' };
+  const algoEl = document.getElementById(['algo1','algo2','algo3'][idx]);
+  if (!algoEl) return;
+  const val = algoEl.value;
+  const badge = document.getElementById(`badge${idx}`);
+  badge.textContent = names[val];
+  badge.className = 'algo-badge ' + classes[val];
+}
+
+function setHeuristicMode(mode, btn) {
+  AppState.heuristicMode = mode;
+  document.querySelectorAll('.htab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('hPreset').style.display = mode === 'preset' ? 'block' : 'none';
+  document.getElementById('hCustom').style.display = mode === 'custom' ? 'block' : 'none';
+  document.getElementById('hTable').style.display = mode === 'table' ? 'block' : 'none';
+}
+
+function testHeuristic() {
+  const formula = document.getElementById('customHeuristic').value;
+  AppState.customHeuristic = formula;
+  try {
+    const fn = Heuristics.getCustom(formula, 5, 5);
+    const val = fn(0, 0);
+    showToast(`✓ h(0,0) = ${val.toFixed(2)}`);
+  } catch(e) {
+    showToast(`✗ Error: ${e.message}`);
+  }
+}
+
+function parseHTable() {
+  const text = document.getElementById('hTableInput').value;
+  const table = {};
+  for (const line of text.split('\n')) {
+    const m = line.trim().match(/^(\d+),(\d+)=(\d+\.?\d*)$/);
+    if (m) table[`${m[1]},${m[2]}`] = parseFloat(m[3]);
+  }
+  AppState.hTable = table;
+  showToast(`✓ Loaded ${Object.keys(table).length} heuristic values`);
+}
+
+document.getElementById('speedSlider').addEventListener('input', function() {
+  AppState.speed = parseInt(this.value);
+  document.getElementById('speedVal').textContent = this.value;
+});
+
+document.getElementById('customHeuristic').addEventListener('change', function() {
+  AppState.customHeuristic = this.value;
+});
+
+// =====================================================
+// CHART
+// =====================================================
+let chartInstance = null;
+
+function showChart() {
+  document.getElementById('chartOverlay').classList.add('show');
+  setTimeout(renderChart, 100);
+}
+
+function closeChart(e) {
+  if (!e || e.target === document.getElementById('chartOverlay')) {
+    document.getElementById('chartOverlay').classList.remove('show');
+  }
+}
+
+function renderChart() {
+  const canvas = document.getElementById('chartCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = 250;
+
+  const labels = [];
+  const data = [];
+  const colors = ['#22d3ee','#f87171','#fbbf24'];
+
+  for (let i = 0; i < AppState.panelCount; i++) {
+    const s = AlgoStates[i];
+    const algoEl = document.getElementById(['algo1','algo2','algo3'][i]);
+    labels.push(algoEl ? algoEl.value.toUpperCase() : `Algo ${i+1}`);
+    data.push(s ? s.expandedCount : 0);
+  }
+
+  const maxVal = Math.max(...data, 1);
+  const barW = 80, gap = 60;
+  const totalW = (barW + gap) * labels.length;
+  const startX = (canvas.width - totalW + gap) / 2;
+  const maxH = 180;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  for (let i = 0; i < labels.length; i++) {
+    const x = startX + i * (barW + gap);
+    const h = (data[i] / maxVal) * maxH;
+    const y = 220 - h;
+
+    // Bar
+    const grad = ctx.createLinearGradient(x, y, x, 220);
+    grad.addColorStop(0, colors[i % colors.length]);
+    grad.addColorStop(1, colors[i % colors.length] + '44');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(x, y, barW, h, 6);
+    ctx.fill();
+
+    // Label
+    ctx.fillStyle = '#e2e8f0';
+    ctx.font = 'bold 12px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.fillText(labels[i], x + barW/2, 240);
+
+    // Value
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.font = 'bold 13px JetBrains Mono';
+    ctx.fillText(data[i], x + barW/2, y - 6);
+  }
+
+  // Y axis label
+  ctx.fillStyle = '#64748b';
+  ctx.font = '10px JetBrains Mono';
+  ctx.textAlign = 'left';
+  ctx.fillText('Nodes expanded', 10, 15);
+}
+
+// =====================================================
+// EXPORT
+// =====================================================
+function exportResults() {
+  const results = [];
+  for (let i = 0; i < AppState.panelCount; i++) {
+    const s = AlgoStates[i];
+    const algoEl = document.getElementById(['algo1','algo2','algo3'][i]);
+    results.push({
+      algorithm: algoEl ? algoEl.value : `algo${i+1}`,
+      expandedNodes: s ? s.expandedCount : 0,
+      pathCost: s ? s.pathCost : null,
+      pathFound: s ? s.found : false,
+      pathLength: s ? s.path.length : 0,
+      path: s ? s.path : [],
+      heuristicMode: AppState.heuristicMode,
+      gridSize: Grid.size,
+      timestamp: new Date().toISOString()
+    });
+  }
+
+  const blob = new Blob([JSON.stringify({ results, grid: Grid.cells }, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'search-results.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📁 Results exported!');
+}
+
+// =====================================================
+// UTILITIES
+// =====================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// Resize observer
+const ro = new ResizeObserver(() => drawAll());
+ro.observe(document.getElementById('gridsArea'));
+
+// =====================================================
+// INITIALIZATION
+// =====================================================
+window.addEventListener('DOMContentLoaded', () => {
+  setupCanvases();
+  initGrid(AppState.gridSize);
+  updateAlgoBadge(0);
+  updateAlgoBadge(1);
+
+  // Set default mode
+  setMode('compare');
+  // reactivate compare tab
+  document.querySelectorAll('.tab-btn')[1].classList.add('active');
+  document.querySelectorAll('.tab-btn')[0].classList.remove('active');
+
+  drawAll();
+});
+
+window.addEventListener('resize', () => setTimeout(drawAll, 100));
+</script>
+</body>
+</html>
