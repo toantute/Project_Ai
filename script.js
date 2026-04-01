@@ -1,741 +1,608 @@
- // ═══════════════════════════════════════════════════
-      //  STATE
-      // ═══════════════════════════════════════════════════
-      let M = [],
-        m = 0,
-        n = 0;
-      let sx = 0,
-        sy = 0,
-        tx = 0,
-        ty = 0;
-      let w = [0, 1, 2, 3, 4];
-      let tcnt = 3;
-      let drawMode = "wall";
-      let isDown = false;
-      let steps = [],
-        stepIdx = 0;
-      let timer = null,
-        running = false;
-      let expandedCount = 0;
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
-      const TCOLORS = ["", "#D0EAD4", "#FBF2C0", "#FFE0B2", "#FDDCDC"];
-      const TNAMES = ["", "T1 · Grass", "T2 · Sand", "T3 · Rock", "T4 · Swamp"];
+:root {
+  --bg: #eef3ff;
+  --surface: #ffffff;
+  --surface2: #f5f7ff;
+  --border: #dce2f5;
+  --border-s: #c5ceed;
+  --text: #1b2559;
+  --muted: #7a88b8;
+  --accent: #4f6ef7;
+  --accent-h: #3757e0;
+  --accent-bg: #ebf0ff;
+  --green: #16a34a;
+  --green-bg: #dcfce7;
+  --red: #dc2626;
+  --red-bg: #fee2e2;
+  --amber: #d97706;
+  --amber-bg: #fef3c7;
+  --purple: #7c3aed;
+  --purple-bg: #ede9fe;
 
-      const dx = [-1, 0, 1, 0],
-        dy = [0, 1, 0, -1];
+  --wall: #1e2b4a;
+  --t1: #bbf7d0;
+  --t1-border: #4ade80;
+  --t2: #fef08a;
+  --t2-border: #facc15;
+  --t3: #fed7aa;
+  --t3-border: #fb923c;
+  --t4: #fecaca;
+  --t4-border: #f87171;
 
-      const ALGO_DESC = {
-        BFS: "Explores all nodes layer by layer. Guarantees shortest path (by steps) on unweighted graphs.",
-        DFS: "Dives deep along one branch before backtracking. Fast but not optimal.",
-        UCS: "Expands lowest-cost node first (Dijkstra). Guarantees optimal cost path.",
-        DLS: "DFS with a hard depth limit. Useful when solution depth is known.",
-        IDS: "Repeatedly runs DLS with increasing depth limits. Optimal + memory-efficient.",
-        GBFS: "Greedy: follows heuristic only. Fast but not always optimal.",
-        Astar:
-          "Combines cost (g) + heuristic (h). Optimal and efficient with admissible h.",
-      };
+  --vis-bg: rgba(79, 110, 247, 0.18);
+  --vis-border: rgba(79, 110, 247, 0.55);
+  --front-bg: rgba(124, 58, 237, 0.18);
+  --front-border: rgba(124, 58, 237, 0.55);
+  --path-bg: rgba(234, 179, 8, 0.55);
+  --path-border: rgba(202, 138, 4, 0.8);
 
-      // ═══════════════════════════════════════════════════
-      //  GRID BUILD
-      // ═══════════════════════════════════════════════════
-      function buildGrid() {
-        m = parseInt(document.getElementById("rows").value) || 10;
-        n = parseInt(document.getElementById("cols").value) || 12;
-        tcnt = parseInt(document.getElementById("tcnt").value) || 2;
-        tcnt = Math.max(1, Math.min(4, tcnt));
-        M = Array.from({ length: m }, () => new Array(n).fill(1));
-        sx = 0;
-        sy = 0;
-        tx = m - 1;
-        ty = n - 1;
-        updateTerrainUI();
-        updateDrawModes();
-        renderGrid();
-        clearVis();
-      }
+  --shadow-sm: 0 1px 4px rgba(79, 110, 247, 0.08);
+  --shadow: 0 4px 20px rgba(79, 110, 247, 0.12);
+  --shadow-lg: 0 8px 32px rgba(79, 110, 247, 0.16);
+}
 
-      function updateTerrainUI() {
-        tcnt = Math.max(
-          1,
-          Math.min(4, parseInt(document.getElementById("tcnt").value) || 2),
-        );
-        const c = document.getElementById("terrain-ui");
-        c.innerHTML = "";
-        for (let i = 1; i <= tcnt; i++) {
-          const row = document.createElement("div");
-          row.className = "tc-row";
-          row.innerHTML = `
-      <div class="tc-swatch" style="background:${TCOLORS[i]}"></div>
-      <label>T${i}</label>
-      <input type="number" value="${w[i] || i}" min="1" max="999"
-        style="width:60px;margin:0"
-        onchange="w[${i}]=Math.max(1,parseInt(this.value)||1)">
-    `;
-          c.appendChild(row);
-        }
-        updateDrawModes();
-      }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
-      function updateDrawModes() {
-        const c = document.getElementById("draw-modes");
-        c.innerHTML = "";
-        const modes = [
-          { id: "wall", label: "⬛ Wall" },
-          { id: "erase", label: "◻ Erase" },
-          { id: "start", label: "🟢 Start" },
-          { id: "end", label: "🔴 End" },
-        ];
-        for (let i = 1; i <= tcnt; i++)
-          modes.push({ id: `t${i}`, label: `T${i}`, color: TCOLORS[i] });
-        modes.forEach((mo) => {
-          const b = document.createElement("div");
-          b.className = "dm-btn" + (drawMode === mo.id ? " active" : "");
-          b.textContent = mo.label;
-          if (mo.color) b.style.borderLeftColor = mo.color;
-          b.onclick = () => setMode(mo.id);
-          c.appendChild(b);
-        });
-      }
+body {
+  font-family: "Plus Jakarta Sans", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
 
-      function setMode(id) {
-        drawMode = id;
-        updateDrawModes();
-      }
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-s);
+  border-radius: 99px;
+}
 
-      function renderGrid() {
-        const el = document.getElementById("grid");
-        const avW = Math.floor((window.innerWidth * 0.5 - 32) / n);
-        const avH = Math.floor((window.innerHeight * 0.72 - 32) / m);
-        const cs = Math.max(16, Math.min(44, Math.min(avW, avH)));
-        el.style.gridTemplateColumns = `repeat(${n},${cs}px)`;
-        el.innerHTML = "";
-        for (let i = 0; i < m; i++) {
-          for (let j = 0; j < n; j++) {
-            const d = document.createElement("div");
-            d.className = "cell";
-            d.style.width = d.style.height = cs + "px";
-            d.id = `c_${i}_${j}`;
-            d.dataset.x = i;
-            d.dataset.y = j;
-            d.innerHTML = `<div class="cell-ov"></div><div class="cell-mk"></div>`;
-            d.addEventListener("mousedown", (e) => {
-              isDown = true;
-              paint(i, j);
-              e.preventDefault();
-            });
-            d.addEventListener("mousemove", () => {
-              if (isDown) paint(i, j);
-            });
-            el.appendChild(d);
-            paintCell(i, j);
-          }
-        }
-        document.addEventListener("mouseup", () => (isDown = false));
-      }
+/* ══════════════════════════════════
+   HEADER
+══════════════════════════════════ */
+header {
+  background: var(--surface);
+  border-bottom: 1.5px solid var(--border);
+  padding: 0 20px;
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+  z-index: 10;
+}
 
-      function paintCell(i, j) {
-        const d = document.getElementById(`c_${i}_${j}`);
-        if (!d) return;
-        d.className = "cell";
-        const t = M[i][j];
-        if (t === 0) d.classList.add("wall");
-        else d.classList.add(`t${t}`);
-        const mk = d.querySelector(".cell-mk");
-        if (i === sx && j === sy) mk.textContent = "🟢";
-        else if (i === tx && j === ty) mk.textContent = "🔴";
-        else mk.textContent = "";
-      }
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.brand-icon {
+  width: 34px;
+  height: 34px;
+  background: var(--accent);
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  box-shadow: 0 2px 8px rgba(79, 110, 247, 0.35);
+}
+.brand-text h1 {
+  font-size: 0.92rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  color: var(--text);
+}
+.brand-text p {
+  font-size: 0.58rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
 
-      function paint(i, j) {
-        if (running) return;
-        const old_sx = sx,
-          old_sy = sy,
-          old_tx = tx,
-          old_ty = ty;
-        if (drawMode === "wall") {
-          if ((i === sx && j === sy) || (i === tx && j === ty)) return;
-          M[i][j] = 0;
-        } else if (drawMode === "erase") {
-          M[i][j] = 1;
-        } else if (drawMode === "start") {
-          sx = i;
-          sy = j;
-          if (M[i][j] === 0) M[i][j] = 1;
-          paintCell(old_sx, old_sy);
-        } else if (drawMode === "end") {
-          tx = i;
-          ty = j;
-          if (M[i][j] === 0) M[i][j] = 1;
-          paintCell(old_tx, old_ty);
-        } else if (drawMode.startsWith("t")) {
-          const t = parseInt(drawMode.slice(1));
-          if ((i === sx && j === sy) || (i === tx && j === ty)) return;
-          M[i][j] = t;
-        }
-        paintCell(i, j);
-      }
+.header-pills {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.pill {
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: var(--surface2);
+  color: var(--muted);
+  border: 1.5px solid var(--border);
+  cursor: pointer;
+  transition: all 0.14s;
+}
+.pill.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  box-shadow: 0 2px 8px rgba(79, 110, 247, 0.35);
+}
 
-      // ═══════════════════════════════════════════════════
-      //  RANDOM MAZE
-      // ═══════════════════════════════════════════════════
-      function genRandom() {
-        clearVis();
-        for (let i = 0; i < m; i++) {
-          for (let j = 0; j < n; j++) {
-            if ((i === sx && j === sy) || (i === tx && j === ty)) continue;
-            const r = Math.random();
-            if (r < 0.22) M[i][j] = 0;
-            else {
-              M[i][j] = Math.ceil(Math.random() * tcnt);
-            }
-          }
-        }
-        // ensure connectivity from sx,sy: carve a guaranteed path
-        let cx = sx,
-          cy = sy;
-        while (cx !== tx || cy !== ty) {
-          if (cx < tx && Math.random() > 0.4) {
-            M[cx + 1][cy] = M[cx + 1][cy] || 1;
-            cx++;
-          } else if (cy < ty && Math.random() > 0.4) {
-            M[cx][cy + 1] = M[cx][cy + 1] || 1;
-            cy++;
-          } else if (cx < tx) {
-            M[cx + 1][cy] = M[cx + 1][cy] || 1;
-            cx++;
-          } else {
-            M[cx][cy + 1] = M[cx][cy + 1] || 1;
-            cy++;
-          }
-        }
-        renderGrid();
-      }
+/* ══════════════════════════════════
+   LAYOUT
+══════════════════════════════════ */
+.app {
+  display: grid;
+  grid-template-columns: 265px 1fr 220px;
+  flex: 1;
+  overflow: hidden;
+}
 
-      // ═══════════════════════════════════════════════════
-      //  MIN-HEAP
-      // ═══════════════════════════════════════════════════
-      class Heap {
-        constructor(cmp) {
-          this.h = [];
-          this.cmp = cmp;
-        }
-        push(x) {
-          this.h.push(x);
-          this._up(this.h.length - 1);
-        }
-        pop() {
-          const t = this.h[0],
-            l = this.h.pop();
-          if (this.h.length) {
-            this.h[0] = l;
-            this._dn(0);
-          }
-          return t;
-        }
-        peek() {
-          return this.h[0];
-        }
-        empty() {
-          return !this.h.length;
-        }
-        _up(i) {
-          while (i > 0) {
-            const p = (i - 1) >> 1;
-            if (this.cmp(this.h[i], this.h[p]) < 0) {
-              [this.h[i], this.h[p]] = [this.h[p], this.h[i]];
-              i = p;
-            } else break;
-          }
-        }
-        _dn(i) {
-          const n = this.h.length;
-          while (1) {
-            let s = i,
-              l = 2 * i + 1,
-              r = 2 * i + 2;
-            if (l < n && this.cmp(this.h[l], this.h[s]) < 0) s = l;
-            if (r < n && this.cmp(this.h[r], this.h[s]) < 0) s = r;
-            if (s !== i) {
-              [this.h[i], this.h[s]] = [this.h[s], this.h[i]];
-              i = s;
-            } else break;
-          }
-        }
-      }
+/* ── PANELS ── */
+.panel {
+  background: var(--surface);
+  border-right: 1.5px solid var(--border);
+  overflow-y: auto;
+  padding: 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.panel-r {
+  border-right: none;
+  border-left: 1.5px solid var(--border);
+}
 
-      // ═══════════════════════════════════════════════════
-      //  HEURISTIC
-      // ═══════════════════════════════════════════════════
-      function H(x, y) {
-        const ht = parseInt(document.getElementById("htype").value);
-        const mul = parseFloat(document.getElementById("hmul").value) || 1;
-        const wmin = Math.min(...w.slice(1, tcnt + 1));
-        const ddx = Math.abs(x - tx),
-          ddy = Math.abs(y - ty);
-        if (ht === 1) return Math.sqrt(ddx * ddx + ddy * ddy) * wmin * mul;
-        return (ddx + ddy) * wmin * mul;
-      }
+/* ── SECTION ── */
+.sec {
+  margin-bottom: 14px;
+}
+.sec-title {
+  font-size: 0.58rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  padding-bottom: 6px;
+  margin-bottom: 9px;
+  border-bottom: 1.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.sec-title svg {
+  opacity: 0.55;
+}
+.sep {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 0;
+}
 
-      function traceP(par) {
-        const path = [];
-        let cx = tx,
-          cy = ty;
-        while (!(cx === sx && cy === sy)) {
-          path.unshift([cx, cy]);
-          [cx, cy] = par[cx][cy];
-        }
-        path.unshift([sx, sy]);
-        return path;
-      }
+/* ── FORM CONTROLS ── */
+label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+input[type="number"],
+select {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 7px;
+  font-size: 0.74rem;
+  font-family: "JetBrains Mono", monospace;
+  background: var(--surface2);
+  color: var(--text);
+  outline: none;
+  margin-bottom: 8px;
+  transition:
+    border 0.15s,
+    box-shadow 0.15s;
+}
+input[type="number"]:focus,
+select:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 110, 247, 0.12);
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 
-      // ═══════════════════════════════════════════════════
-      //  ALGORITHMS  → return steps[]
-      // ═══════════════════════════════════════════════════
-      function algoBFS() {
-        const st = [];
-        const vis = A2(false),
-          par = A2(null);
-        const q = [{ x: sx, y: sy, d: 0, g: 0 }];
-        vis[sx][sy] = true;
-        par[sx][sy] = [sx, sy];
-        while (q.length) {
-          const c = q.shift();
-          const { x, y } = c;
-          st.push({ t: "E", x, y, g: c.g, d: c.d });
-          if (x === tx && y === ty) {
-            st.push({ t: "F", path: traceP(par), g: c.g });
-            return st;
-          }
-          for (let i = 0; i < 4; i++) {
-            const nx = x + dx[i],
-              ny = y + dy[i];
-            if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
-              vis[nx][ny] = true;
-              par[nx][ny] = [x, y];
-              q.push({ x: nx, y: ny, d: c.d + 1, g: c.g + w[M[nx][ny]] });
-              st.push({ t: "Fr", x: nx, y: ny });
-            }
-          }
-        }
-        st.push({ t: "N" });
-        return st;
-      }
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  cursor: pointer;
+  border: none;
+  transition: all 0.14s;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(79, 110, 247, 0.3);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent-h);
+  box-shadow: 0 4px 14px rgba(79, 110, 247, 0.4);
+  transform: translateY(-1px);
+}
+.btn-sec {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1.5px solid var(--border);
+}
+.btn-sec:hover:not(:disabled) {
+  background: var(--border);
+  border-color: var(--border-s);
+}
+.btn-group {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
 
-      function algoDFS() {
-        const st = [];
-        const vis = A2(false),
-          par = A2(null);
-        const stack = [{ x: sx, y: sy, d: 0, g: 0 }];
-        vis[sx][sy] = true;
-        par[sx][sy] = [sx, sy];
-        while (stack.length) {
-          const c = stack.pop();
-          const { x, y } = c;
-          st.push({ t: "E", x, y, g: c.g, d: c.d });
-          if (x === tx && y === ty) {
-            st.push({ t: "F", path: traceP(par), g: c.g });
-            return st;
-          }
-          for (let i = 0; i < 4; i++) {
-            const nx = x + dx[i],
-              ny = y + dy[i];
-            if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
-              vis[nx][ny] = true;
-              par[nx][ny] = [x, y];
-              stack.push({ x: nx, y: ny, d: c.d + 1, g: c.g + w[M[nx][ny]] });
-              st.push({ t: "Fr", x: nx, y: ny });
-            }
-          }
-        }
-        st.push({ t: "N" });
-        return st;
-      }
+/* ── DRAW MODE GRID ── */
+.draw-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-bottom: 4px;
+}
+.dm-btn {
+  padding: 7px 4px;
+  border-radius: 7px;
+  border: 1.5px solid var(--border);
+  background: var(--surface2);
+  cursor: pointer;
+  font-size: 0.63rem;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  font-weight: 700;
+  text-align: center;
+  transition: all 0.13s;
+  color: var(--text);
+  line-height: 1.3;
+}
+.dm-btn:hover:not(.active) {
+  border-color: var(--border-s);
+  background: var(--accent-bg);
+}
+.dm-btn.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  color: var(--accent);
+}
 
-      function algoUCS() {
-        const st = [];
-        const dis = A2(Infinity),
-          par = A2(null);
-        const pq = new Heap((a, b) => a.f - b.f);
-        dis[sx][sy] = 0;
-        par[sx][sy] = [sx, sy];
-        pq.push({ x: sx, y: sy, d: 0, g: 0, f: 0 });
-        while (!pq.empty()) {
-          const c = pq.pop();
-          const { x, y } = c;
-          if (c.g > dis[x][y]) continue;
-          st.push({ t: "E", x, y, g: c.g, d: c.d });
-          if (x === tx && y === ty) {
-            st.push({ t: "F", path: traceP(par), g: c.g });
-            return st;
-          }
-          for (let i = 0; i < 4; i++) {
-            const nx = x + dx[i],
-              ny = y + dy[i];
-            if (ok(nx, ny) && M[nx][ny]) {
-              const ng = c.g + w[M[nx][ny]];
-              if (ng < dis[nx][ny]) {
-                dis[nx][ny] = ng;
-                par[nx][ny] = [x, y];
-                pq.push({ x: nx, y: ny, d: c.d + 1, g: ng, f: ng });
-                st.push({ t: "Fr", x: nx, y: ny });
-              }
-            }
-          }
-        }
-        st.push({ t: "N" });
-        return st;
-      }
+/* ── TERRAIN ROW ── */
+.tc-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.tc-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(0, 0, 0, 0.1);
+}
+.tc-row input {
+  flex: 1;
+  margin-bottom: 0;
+}
+.tc-row label {
+  margin: 0;
+  flex-shrink: 0;
+  width: 24px;
+  font-size: 0.68rem;
+}
 
-      function algoDLS(lim) {
-        const st = [];
-        const dmin = A2(Infinity),
-          par = A2(null);
-        let reachedLim = false;
-        dmin[sx][sy] = 0;
-        par[sx][sy] = [sx, sy];
-        const stack = [{ x: sx, y: sy, d: 0, g: 0 }];
-        while (stack.length) {
-          const c = stack.pop();
-          const { x, y } = c;
-          if (c.d === lim) reachedLim = true;
-          st.push({ t: "E", x, y, g: c.g, d: c.d });
-          if (x === tx && y === ty) {
-            st.push({ t: "F", path: traceP(par), g: c.g });
-            return { st, found: true, reachedLim };
-          }
-          for (let i = 0; i < 4; i++) {
-            const nx = x + dx[i],
-              ny = y + dy[i];
-            const nd = c.d + 1;
-            if (ok(nx, ny) && M[nx][ny] && nd <= lim && nd < dmin[nx][ny]) {
-              dmin[nx][ny] = nd;
-              par[nx][ny] = [x, y];
-              stack.push({ x: nx, y: ny, d: nd, g: c.g + w[M[nx][ny]] });
-              st.push({ t: "Fr", x: nx, y: ny });
-            }
-          }
-        }
-        st.push({ t: "N" });
-        return { st, found: false, reachedLim };
-      }
+/* ── ALGO DESCRIPTION ── */
+.algo-desc {
+  font-size: 0.64rem;
+  line-height: 1.55;
+  color: var(--muted);
+  background: var(--accent-bg);
+  border-radius: 7px;
+  padding: 8px 10px;
+  border-left: 3px solid var(--accent);
+  margin-top: 4px;
+  font-weight: 500;
+}
+.extra-params {
+  margin-top: 8px;
+}
 
-      function algoIDS() {
-        const all = [];
-        const cap = m * n;
-        for (let l = 0; l <= cap; l++) {
-          all.push({ t: "I", l });
-          const { st, found, reachedLim } = algoDLS(l);
-          all.push(...st);
-          if (found) return all;
-          if (!reachedLim) break;
-        }
-        if (all[all.length - 1]?.t === "N") all.pop();
-        all.push({ t: "N" });
-        return all;
-      }
+/* ══════════════════════════════════
+   CENTER — GRID
+══════════════════════════════════ */
+.center {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+.grid-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: auto;
+}
 
-      function algoGBFS() {
-        const st = [];
-        const vis = A2(false),
-          par = A2(null);
-        const pq = new Heap((a, b) => a.f - b.f);
-        vis[sx][sy] = true;
-        par[sx][sy] = [sx, sy];
-        pq.push({ x: sx, y: sy, d: 0, g: 0, f: H(sx, sy) });
-        while (!pq.empty()) {
-          const c = pq.pop();
-          const { x, y } = c;
-          st.push({ t: "E", x, y, g: c.g, d: c.d });
-          if (x === tx && y === ty) {
-            st.push({ t: "F", path: traceP(par), g: c.g });
-            return st;
-          }
-          for (let i = 0; i < 4; i++) {
-            const nx = x + dx[i],
-              ny = y + dy[i];
-            if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
-              vis[nx][ny] = true;
-              par[nx][ny] = [x, y];
-              pq.push({
-                x: nx,
-                y: ny,
-                d: c.d + 1,
-                g: c.g + w[M[nx][ny]],
-                f: H(nx, ny),
-              });
-              st.push({ t: "Fr", x: nx, y: ny });
-            }
-          }
-        }
-        st.push({ t: "N" });
-        return st;
-      }
+#grid {
+  display: inline-grid;
+  gap: 2px;
+  background: var(--border);
+  border: 2px solid var(--border-s);
+  border-radius: 12px;
+  overflow: hidden;
+  user-select: none;
+  box-shadow: var(--shadow-lg);
+}
 
-      function algoAstar() {
-        const st = [];
-        const dis = A2(Infinity),
-          par = A2(null);
-        const pq = new Heap((a, b) => a.f - b.f);
-        dis[sx][sy] = 0;
-        par[sx][sy] = [sx, sy];
-        pq.push({ x: sx, y: sy, d: 0, g: 0, f: H(sx, sy) });
-        while (!pq.empty()) {
-          const c = pq.pop();
-          const { x, y } = c;
-          if (c.g > dis[x][y]) continue;
-          st.push({ t: "E", x, y, g: c.g, d: c.d });
-          if (x === tx && y === ty) {
-            st.push({ t: "F", path: traceP(par), g: c.g });
-            return st;
-          }
-          for (let i = 0; i < 4; i++) {
-            const nx = x + dx[i],
-              ny = y + dy[i];
-            if (ok(nx, ny) && M[nx][ny]) {
-              const ng = c.g + w[M[nx][ny]];
-              if (ng < dis[nx][ny]) {
-                dis[nx][ny] = ng;
-                par[nx][ny] = [x, y];
-                pq.push({ x: nx, y: ny, d: c.d + 1, g: ng, f: ng + H(nx, ny) });
-                st.push({ t: "Fr", x: nx, y: ny });
-              }
-            }
-          }
-        }
-        st.push({ t: "N" });
-        return st;
-      }
+/* ── CELLS ── */
+.cell {
+  position: relative;
+  cursor: crosshair;
+  overflow: hidden;
+  transition: filter 0.08s;
+}
+.cell:hover {
+  filter: brightness(1.07);
+}
 
-      function genSteps() {
-        // refresh terrain costs from UI
-        document
-          .querySelectorAll("#terrain-ui .tc-row input")
-          .forEach((inp, i) => {
-            w[i + 1] = Math.max(1, parseInt(inp.value) || 1);
-          });
-        const a = document.getElementById("algo").value;
-        if (a === "BFS") return algoBFS();
-        if (a === "DFS") return algoDFS();
-        if (a === "UCS") return algoUCS();
-        if (a === "DLS")
-          return algoDLS(
-            parseInt(document.getElementById("dls-lim").value) || 10,
-          ).st;
-        if (a === "IDS") return algoIDS();
-        if (a === "GBFS") return algoGBFS();
-        if (a === "Astar") return algoAstar();
-      }
+.cell.wall {
+  background: var(--wall);
+}
+.cell.t1 {
+  background: var(--t1);
+}
+.cell.t2 {
+  background: var(--t2);
+}
+.cell.t3 {
+  background: var(--t3);
+}
+.cell.t4 {
+  background: var(--t4);
+}
 
-      // ═══════════════════════════════════════════════════
-      //  VISUALIZATION CONTROLS
-      // ═══════════════════════════════════════════════════
-      function startRun() {
-        clearVis();
-        steps = genSteps();
-        stepIdx = 0;
-        running = true;
-        document.getElementById("btn-run").disabled = true;
-        document.getElementById("btn-step").disabled = true;
-        document.getElementById("btn-pause").disabled = false;
-        document.getElementById("s-depth-card").style.display =
-          document.getElementById("algo").value === "IDS" ? "block" : "none";
-        animate();
-      }
+.cell-ov {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: background 0.12s;
+}
+.cell.vis .cell-ov {
+  background: var(--vis-bg);
+  box-shadow: inset 0 0 0 1px var(--vis-border);
+}
+.cell.front .cell-ov {
+  background: var(--front-bg);
+  box-shadow: inset 0 0 0 1px var(--front-border);
+}
+.cell.onpath .cell-ov {
+  background: var(--path-bg);
+  box-shadow: inset 0 0 0 1.5px var(--path-border);
+}
 
-      function animate() {
-        if (stepIdx >= steps.length) {
-          running = false;
-          document.getElementById("btn-run").disabled = false;
-          document.getElementById("btn-step").disabled = false;
-          document.getElementById("btn-pause").disabled = true;
-          return;
-        }
-        doStep(steps[stepIdx++]);
-        updatePBar();
-        timer = setTimeout(animate, getDelay());
-      }
+.cell-mk {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  pointer-events: none;
+}
 
-      function getDelay() {
-        const s = parseInt(document.getElementById("speed").value);
-        return [600, 350, 220, 150, 100, 65, 40, 22, 10, 2][s - 1];
-      }
+/* animations */
+@keyframes popIn {
+  0% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+  65% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes pathPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-8deg);
+  }
+  70% {
+    transform: scale(1.1) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+.cell.popping .cell-ov {
+  animation: popIn 0.3s ease forwards;
+}
+.cell.pathpop .cell-ov {
+  animation: pathPop 0.25s ease forwards;
+}
 
-      function stepRun() {
-        if (!steps.length) {
-          steps = genSteps();
-          stepIdx = 0;
-          document.getElementById("s-depth-card").style.display =
-            document.getElementById("algo").value === "IDS" ? "block" : "none";
-        }
-        if (stepIdx >= steps.length) return;
-        doStep(steps[stepIdx++]);
-        updatePBar();
-      }
+/* ══════════════════════════════════
+   PLAYBACK BAR
+══════════════════════════════════ */
+.playbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  background: var(--surface);
+  border-top: 1.5px solid var(--border);
+  flex-shrink: 0;
+  box-shadow: 0 -2px 12px rgba(79, 110, 247, 0.06);
+  flex-wrap: wrap;
+}
+.playbar-spacer {
+  flex: 1;
+}
 
-      function pauseRun() {
-        if (timer) clearTimeout(timer);
-        timer = null;
-        running = false;
-        const btn = document.getElementById("btn-run");
-        btn.textContent = "▶ Resume";
-        btn.onclick = resumeRun;
-        btn.disabled = false;
-        document.getElementById("btn-pause").disabled = true;
-      }
+/* ── LEGEND ── */
+.legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.leg-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.leg-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
 
-      function resumeRun() {
-        running = true;
-        const btn = document.getElementById("btn-run");
-        btn.textContent = "▶ Run";
-        btn.onclick = startRun;
-        btn.disabled = true;
-        document.getElementById("btn-pause").disabled = false;
-        animate();
-      }
+/* ══════════════════════════════════
+   RIGHT PANEL — STATS & LOG
+══════════════════════════════════ */
+.stat-card {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 11px;
+  margin-bottom: 7px;
+  transition: box-shadow 0.14s;
+}
+.stat-card:hover {
+  box-shadow: var(--shadow-sm);
+}
+.stat-lbl {
+  font-size: 0.58rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.stat-val {
+  font-size: 1.5rem;
+  font-weight: 800;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--accent);
+  letter-spacing: -0.03em;
+}
+.stat-val.sm {
+  font-size: 1rem;
+}
 
-      function doReset() {
-        if (timer) clearTimeout(timer);
-        timer = null;
-        running = false;
-        const btn = document.getElementById("btn-run");
-        btn.textContent = "▶ Run";
-        btn.onclick = startRun;
-        clearVis();
-        renderGrid();
-      }
+.depth-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 99px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1.5px solid var(--border);
+}
 
-      function clearVis() {
-        if (timer) clearTimeout(timer);
-        timer = null;
-        running = false;
-        steps = [];
-        stepIdx = 0;
-        expandedCount = 0;
-        document.querySelectorAll(".cell").forEach((c) => {
-          c.classList.remove("vis", "front", "onpath", "popping", "pathpop");
-          c.querySelector(".cell-ov").style.background = "";
-        });
-        document.getElementById("log").innerHTML = "";
-        document.getElementById("s-exp").textContent = "—";
-        document.getElementById("s-cost").textContent = "—";
-        document.getElementById("s-len").textContent = "—";
-        document.getElementById("pbar").style.width = "0%";
-        document.getElementById("pbar-lbl").textContent = "Step 0 / 0";
-        document.getElementById("btn-run").disabled = false;
-        document.getElementById("btn-step").disabled = false;
-        document.getElementById("btn-pause").disabled = true;
-      }
+/* ── PROGRESS BAR ── */
+.pbar-wrap {
+  margin-bottom: 5px;
+}
+.pbar-bg {
+  height: 6px;
+  background: var(--border);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.pbar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #818cf8);
+  border-radius: 99px;
+  transition: width 0.1s linear;
+}
+.pbar-lbl {
+  font-size: 0.6rem;
+  color: var(--muted);
+  margin-top: 3px;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 500;
+}
 
-      function clearAll() {
-        clearVis();
-        M = Array.from({ length: m }, () => new Array(n).fill(1));
-        renderGrid();
-      }
-
-      // ═══════════════════════════════════════════════════
-      //  STEP PROCESSOR
-      // ═══════════════════════════════════════════════════
-      function doStep(step) {
-        if (step.t === "E") {
-          expandedCount++;
-          const c = cell(step.x, step.y);
-          if (c) {
-            c.classList.remove("front");
-            c.classList.add("vis", "popping");
-            setTimeout(() => c.classList.remove("popping"), 350);
-          }
-          document.getElementById("s-exp").textContent = expandedCount;
-          addLog("expand", `▸ (${step.x},${step.y})  g=${step.g}  d=${step.d}`);
-        } else if (step.t === "Fr") {
-          const c = cell(step.x, step.y);
-          if (c && !c.classList.contains("vis")) c.classList.add("front");
-        } else if (step.t === "F") {
-          step.path.forEach(([x, y], idx) => {
-            setTimeout(() => {
-              const c = cell(x, y);
-              if (!c) return;
-              c.classList.remove("front", "vis", "popping");
-              c.classList.add("onpath", "pathpop");
-              setTimeout(() => c.classList.remove("pathpop"), 280);
-            }, idx * 38);
-          });
-          document.getElementById("s-cost").textContent = step.g;
-          document.getElementById("s-len").textContent = step.path.length - 1;
-          addLog(
-            "found",
-            `✓ Path found! Cost=${step.g}  Steps=${step.path.length - 1}`,
-          );
-        } else if (step.t === "N") {
-          addLog("nofound", "✗ No path found");
-        } else if (step.t === "I") {
-          document.getElementById("s-depth").textContent = step.l;
-          addLog("info", `── IDS: depth limit = ${step.l}`);
-        }
-      }
-
-      function addLog(cls, msg) {
-        const log = document.getElementById("log");
-        const e = document.createElement("div");
-        e.className = `le ${cls}`;
-        e.textContent = msg;
-        log.appendChild(e);
-        log.scrollTop = log.scrollHeight;
-      }
-
-      function updatePBar() {
-        const p = steps.length ? (stepIdx / steps.length) * 100 : 0;
-        document.getElementById("pbar").style.width = p + "%";
-        document.getElementById("pbar-lbl").textContent =
-          `Step ${stepIdx} / ${steps.length}`;
-      }
-
-      // ═══════════════════════════════════════════════════
-      //  UI HELPERS
-      // ═══════════════════════════════════════════════════
-      function onAlgoChange() {
-        const a = document.getElementById("algo").value;
-        document.getElementById("dls-p").style.display =
-          a === "DLS" ? "block" : "none";
-        document.getElementById("h-p").style.display =
-          a === "GBFS" || a === "Astar" ? "block" : "none";
-        document.getElementById("algo-desc").textContent = ALGO_DESC[a] || "";
-        // update header pill
-        document.querySelectorAll(".pill").forEach((p) => {
-          p.classList.toggle("active-algo", p.dataset.a === a);
-        });
-      }
-
-      function cell(x, y) {
-        return document.getElementById(`c_${x}_${y}`);
-      }
-      function ok(x, y) {
-        return x >= 0 && y >= 0 && x < m && y < n;
-      }
-      function A2(v) {
-        return Array.from({ length: m }, () => new Array(n).fill(v));
-      }
-
-      // ═══════════════════════════════════════════════════
-      //  INIT
-      // ═══════════════════════════════════════════════════
-      buildGrid();
-      onAlgoChange();
-      // draw a small default demo pattern
-      (function demo() {
-        // a few walls in the middle
-        const mid = Math.floor(m / 2);
-        for (let j = 2; j < n - 2; j++)
-          if (j !== Math.floor(n / 2)) M[mid][j] = 0;
-        // some terrain variety
-        for (let i = 0; i < m; i++)
-          for (let j = 0; j < n; j++) {
-            if (
-              M[i][j] !== 0 &&
-              !((i === sx && j === sy) || (i === tx && j === ty))
-            ) {
-              if (i > m / 2)
-                M[i][j] = Math.ceil(Math.random() * Math.min(tcnt, 2));
-            }
-          }
-        renderGrid();
-      })();
+/* ── LOG ── */
+.log {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.62rem;
+  line-height: 1.6;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 260px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 9px;
+  background: var(--surface2);
+}
+.le {
+  padding: 1px 0;
+  border-bottom: 1px solid rgba(79, 110, 247, 0.05);
+}
+.le.expand {
+  color: var(--accent);
+}
+.le.found {
+  color: var(--green);
+  font-weight: 700;
+}
+.le.nofound {
+  color: var(--red);
+  font-weight: 700;
+}
+.le.info {
+  color: var(--amber);
+  font-style: italic;
+}
