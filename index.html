@@ -1,438 +1,251 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI Search Algorithm Visualizer</title>
-    <link rel="stylesheet" href="style.css" />
+    <title>Pathfinding Visualizer</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
+    <header>
+      <div class="brand">
+        <span style="font-size: 1.3rem">🗺</span>
+        <div>
+          <h1>Pathfinding Visualizer</h1>
+          <div style="font-size: 0.6rem; opacity: 0.45; letter-spacing: 0.04em">
+            Interactive Search Algorithm Explorer
+          </div>
+        </div>
+      </div>
+      <div class="pills" id="algo-pills">
+        <span class="pill" data-a="BFS">BFS</span>
+        <span class="pill" data-a="DFS">DFS</span>
+        <span class="pill" data-a="UCS">UCS</span>
+        <span class="pill" data-a="DLS">DLS</span>
+        <span class="pill" data-a="IDS">IDS</span>
+        <span class="pill" data-a="GBFS">GBFS</span>
+        <span class="pill" data-a="Astar">A★</span>
+      </div>
+    </header>
+
     <div class="app">
-      <header>
-        <div class="logo"><span>{ AI }</span> Search Visualizer</div>
-        <div class="header-tabs">
-          <button class="tab-btn active" onclick="setMode('single')">
-            Single
-          </button>
-          <button class="tab-btn" onclick="setMode('compare')">
-            Compare 2
-          </button>
-          <button class="tab-btn" onclick="setMode('triple')">Compare 3</button>
+      <!-- ── LEFT PANEL ── -->
+      <div class="panel" id="lpanel">
+        <div class="sec">
+          <div class="sec-title">Grid Setup</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px">
+            <div>
+              <label>Rows</label
+              ><input type="number" id="rows" value="12" min="3" max="30" />
+            </div>
+            <div>
+              <label>Cols</label
+              ><input type="number" id="cols" value="16" min="3" max="40" />
+            </div>
+          </div>
+          <label>Terrain Types (1–4)</label>
+          <input
+            type="number"
+            id="tcnt"
+            value="3"
+            min="1"
+            max="4"
+            onchange="updateTerrainUI()"
+          />
+          <div class="btn-group">
+            <button class="btn btn-primary" onclick="buildGrid()">
+              ⊞ Build Grid
+            </button>
+            <button class="btn btn-sec" onclick="genRandom()">⚄ Random</button>
+          </div>
         </div>
-        <div style="margin-left: auto; display: flex; gap: 8px">
-          <button
-            class="btn btn-secondary"
-            onclick="showChart()"
-            style="font-size: 11px"
-          >
-            📊 Chart
-          </button>
-          <button
-            class="btn btn-secondary"
-            onclick="exportResults()"
-            style="font-size: 11px"
-          >
-            💾 Export
-          </button>
-        </div>
-      </header>
 
-      <div class="main">
-        <!-- Sidebar -->
-        <div class="sidebar">
-          <!-- Grid settings -->
-          <div class="control-group">
-            <div class="section-title">Grid Settings</div>
-            <label
-              >Size: <span id="sizeVal">20</span>×<span id="sizeVal2"
-                >20</span
-              ></label
-            >
-            <input
-              type="range"
-              id="gridSize"
-              min="8"
-              max="40"
-              value="20"
-              oninput="onGridSizeChange(this.value)"
-            />
-            <div style="height: 8px"></div>
-            <label>Algo 1</label>
-            <select id="algo1" onchange="updateAlgoBadge(0)">
-              <option value="bfs">BFS — Breadth First Search</option>
-              <option value="dfs">DFS — Depth First Search</option>
-              <option value="ucs">UCS — Uniform Cost Search</option>
-              <option value="gbfs">Greedy Best First Search</option>
-              <option value="astar" selected>A* Search</option>
+        <div class="sep"></div>
+
+        <div class="sec">
+          <div class="sec-title">Terrain Costs</div>
+          <div id="terrain-ui"></div>
+        </div>
+
+        <div class="sep"></div>
+
+        <div class="sec">
+          <div class="sec-title">Draw Tool</div>
+          <div class="draw-grid" id="draw-modes"></div>
+        </div>
+
+        <div class="sep"></div>
+
+        <div class="sec">
+          <div class="sec-title">Algorithm</div>
+          <select id="algo" onchange="onAlgoChange()">
+            <option value="BFS">BFS — Breadth-First Search</option>
+            <option value="DFS">DFS — Depth-First Search</option>
+            <option value="UCS">UCS — Uniform-Cost Search</option>
+            <option value="DLS">DLS — Depth-Limited Search</option>
+            <option value="IDS">IDS — Iterative Deepening</option>
+            <option value="GBFS">GBFS — Greedy Best-First</option>
+            <option value="Astar" selected>A★ — A-Star Search</option>
+          </select>
+          <div id="algo-desc" class="algo-desc"></div>
+
+          <div id="dls-p" style="display: none; margin-top: 8px">
+            <label>Depth Limit</label>
+            <input type="number" id="dls-lim" value="15" min="1" max="999" />
+          </div>
+
+          <div id="h-p" style="display: none; margin-top: 8px">
+            <label>Heuristic</label>
+            <select id="htype">
+              <option value="0">Manhattan Distance</option>
+              <option value="1">Euclidean Distance</option>
             </select>
-            <div id="algo2row" style="margin-top: 8px">
-              <label>Algo 2</label>
-              <select id="algo2" onchange="updateAlgoBadge(1)">
-                <option value="bfs" selected>BFS — Breadth First Search</option>
-                <option value="dfs">DFS — Depth First Search</option>
-                <option value="ucs">UCS — Uniform Cost Search</option>
-                <option value="gbfs">Greedy Best First Search</option>
-                <option value="astar">A* Search</option>
-              </select>
-            </div>
-            <div id="algo3row" style="margin-top: 8px; display: none">
-              <label>Algo 3</label>
-              <select id="algo3">
-                <option value="bfs">BFS</option>
-                <option value="dfs" selected>DFS</option>
-                <option value="ucs">UCS</option>
-                <option value="gbfs">Greedy</option>
-                <option value="astar">A*</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- Edit mode -->
-          <div class="control-group">
-            <div class="section-title">Edit Mode</div>
-            <div class="mode-btns">
-              <button
-                class="mode-btn start-mode active"
-                onclick="setEditMode('start')"
-                id="modeStart"
-              >
-                🟢 Start
-              </button>
-              <button
-                class="mode-btn goal-mode"
-                onclick="setEditMode('goal')"
-                id="modeGoal"
-              >
-                🔴 Goal
-              </button>
-              <button
-                class="mode-btn wall-mode"
-                onclick="setEditMode('wall')"
-                id="modeWall"
-              >
-                ⬛ Wall
-              </button>
-              <button
-                class="mode-btn"
-                onclick="setEditMode('erase')"
-                id="modeErase"
-              >
-                🧹 Erase
-              </button>
-              <button
-                class="mode-btn weight-mode"
-                onclick="setEditMode('weight')"
-                id="modeWeight"
-              >
-                ⚖️ Weight
-              </button>
-              <button
-                class="mode-btn"
-                onclick="setEditMode('none')"
-                id="modeNone"
-              >
-                🖱️ Drag
-              </button>
-            </div>
-            <div style="height: 8px"></div>
-            <div class="btn-row">
-              <button class="btn btn-secondary" onclick="randomMaze()">
-                🎲 Maze
-              </button>
-              <button class="btn btn-secondary" onclick="clearWalls()">
-                🗑️ Clear
-              </button>
-              <button class="btn btn-secondary" onclick="resetGrid()">
-                ↺ Reset
-              </button>
-            </div>
-          </div>
-
-          <!-- Heuristic -->
-          <div class="control-group">
-            <div class="section-title">Heuristic Function</div>
-            <div class="heuristic-tabs">
-              <button
-                class="htab active"
-                onclick="setHeuristicMode('preset', this)"
-              >
-                Preset
-              </button>
-              <button class="htab" onclick="setHeuristicMode('custom', this)">
-                Custom
-              </button>
-              <button class="htab" onclick="setHeuristicMode('table', this)">
-                Table
-              </button>
-            </div>
-            <div id="hPreset">
-              <select id="heuristicPreset">
-                <option value="manhattan">Manhattan Distance</option>
-                <option value="euclidean">Euclidean Distance</option>
-                <option value="chebyshev">Chebyshev Distance</option>
-                <option value="zero">Zero (Dijkstra-like)</option>
-              </select>
-            </div>
-            <div id="hCustom" style="display: none">
-              <label>Formula (use x,y,goal_x,goal_y):</label>
-              <input
-                type="text"
-                id="customHeuristic"
-                value="Math.abs(x-goal_x)+Math.abs(y-goal_y)"
-                placeholder="abs(x-goal_x)+abs(y-goal_y)"
-              />
-              <div
-                style="font-size: 10px; color: var(--text-dim); margin-top: 4px"
-              >
-                Variables: x, y, goal_x, goal_y
-              </div>
-              <button
-                class="btn btn-secondary"
-                onclick="testHeuristic()"
-                style="margin-top: 6px; width: 100%"
-              >
-                Test Formula
-              </button>
-            </div>
-            <div id="hTable" style="display: none">
-              <label>Manual h(n) table (row,col=value):</label>
-              <textarea
-                id="hTableInput"
-                placeholder="0,0=5&#10;0,1=4&#10;..."
-              ></textarea>
-              <button
-                class="btn btn-secondary"
-                onclick="parseHTable()"
-                style="margin-top: 6px; width: 100%"
-              >
-                Apply Table
-              </button>
-            </div>
-          </div>
-
-          <!-- Legend -->
-          <div class="control-group">
-            <div class="section-title">Legend</div>
-            <div class="legend">
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--start)"></div>
-                Start
-              </div>
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--goal)"></div>
-                Goal
-              </div>
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--open)"></div>
-                Frontier
-              </div>
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--closed)"></div>
-                Visited
-              </div>
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--path)"></div>
-                Path
-              </div>
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--wall)"></div>
-                Wall
-              </div>
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--weight)"></div>
-                Weight
-              </div>
-              <div class="legend-item">
-                <div class="legend-dot" style="background: var(--empty)"></div>
-                Empty
-              </div>
-            </div>
+            <label>Multiplier</label>
+            <input
+              type="number"
+              id="hmul"
+              value="1.0"
+              min="0.1"
+              max="20"
+              step="0.1"
+            />
           </div>
         </div>
 
-        <!-- Content -->
-        <div class="content">
-          <div class="grids-area" id="gridsArea">
-            <!-- Panel 1 -->
-            <div class="grid-panel" id="panel0">
-              <div class="panel-header">
-                <span class="panel-title">Algorithm 1</span>
-                <span class="algo-badge badge-astar" id="badge0">A*</span>
-                <div class="panel-stats">
-                  <div class="stat">
-                    Expanded: <span id="expanded0">0</span>
-                  </div>
-                  <div class="stat">Cost: <span id="cost0">—</span></div>
-                  <div class="stat">Steps: <span id="steps0">0</span></div>
-                </div>
-                <div
-                  id="status0"
-                  class="status-msg status-none"
-                  style="margin-left: 8px"
-                >
-                  READY
-                </div>
-              </div>
-              <div class="grid-wrapper">
-                <canvas id="canvas0"></canvas>
-              </div>
-            </div>
+        <div class="sep"></div>
 
-            <!-- Panel 2 -->
-            <div class="grid-panel" id="panel1" style="display: none">
-              <div class="panel-header">
-                <span class="panel-title">Algorithm 2</span>
-                <span class="algo-badge badge-bfs" id="badge1">BFS</span>
-                <div class="panel-stats">
-                  <div class="stat">
-                    Expanded: <span id="expanded1">0</span>
-                  </div>
-                  <div class="stat">Cost: <span id="cost1">—</span></div>
-                  <div class="stat">Steps: <span id="steps1">0</span></div>
-                </div>
-                <div
-                  id="status1"
-                  class="status-msg status-none"
-                  style="margin-left: 8px"
-                >
-                  READY
-                </div>
-              </div>
-              <div class="grid-wrapper">
-                <canvas id="canvas1"></canvas>
-              </div>
-            </div>
-
-            <!-- Panel 3 -->
-            <div class="grid-panel" id="panel2" style="display: none">
-              <div class="panel-header">
-                <span class="panel-title">Algorithm 3</span>
-                <span class="algo-badge badge-dfs" id="badge2">DFS</span>
-                <div class="panel-stats">
-                  <div class="stat">
-                    Expanded: <span id="expanded2">0</span>
-                  </div>
-                  <div class="stat">Cost: <span id="cost2">—</span></div>
-                  <div class="stat">Steps: <span id="steps2">0</span></div>
-                </div>
-                <div
-                  id="status2"
-                  class="status-msg status-none"
-                  style="margin-left: 8px"
-                >
-                  READY
-                </div>
-              </div>
-              <div class="grid-wrapper">
-                <canvas id="canvas2"></canvas>
-              </div>
-            </div>
-          </div>
-
-          <!-- Controls bar -->
-          <div class="controls-bar">
-            <button class="btn btn-success" id="btnStart" onclick="startAll()">
-              ▶ Start
-            </button>
-            <button
-              class="btn btn-secondary"
-              id="btnPause"
-              onclick="pauseAll()"
-              disabled
-            >
-              ⏸ Pause
-            </button>
-            <button
-              class="btn btn-secondary"
-              id="btnResume"
-              onclick="resumeAll()"
-              disabled
-            >
-              ▶ Resume
-            </button>
-            <button class="btn btn-primary" id="btnStep" onclick="stepAll()">
-              ⏭ Step
-            </button>
-            <button class="btn btn-danger" onclick="resetAll()">⟳ Reset</button>
-            <div class="speed-control">
-              <span>Speed:</span>
-              <input type="range" id="speedSlider" min="1" max="10" value="5" />
-              <span id="speedVal">5</span>
-            </div>
-          </div>
-
-          <!-- Comparison bar -->
-          <div class="comparison-bar" id="compBar" style="display: none">
-            <div class="comp-stats" id="compLeft">
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cExpanded0">0</div>
-                <div class="comp-stat-label">Expanded</div>
-              </div>
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cCost0">—</div>
-                <div class="comp-stat-label">Path Cost</div>
-              </div>
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cTime0">—</div>
-                <div class="comp-stat-label">Time (ms)</div>
-              </div>
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cOptimal0">?</div>
-                <div class="comp-stat-label">Optimal?</div>
-              </div>
-            </div>
-            <div class="comp-center">
-              <div class="vs-badge">VS</div>
-              <div class="winner-badge" id="winnerBadge">—</div>
-            </div>
-            <div
-              class="comp-stats"
-              id="compRight"
-              style="justify-content: flex-end"
-            >
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cExpanded1">0</div>
-                <div class="comp-stat-label">Expanded</div>
-              </div>
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cCost1">—</div>
-                <div class="comp-stat-label">Path Cost</div>
-              </div>
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cTime1">—</div>
-                <div class="comp-stat-label">Time (ms)</div>
-              </div>
-              <div class="comp-stat">
-                <div class="comp-stat-value" id="cOptimal1">?</div>
-                <div class="comp-stat-label">Optimal?</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Chart modal -->
-    <div class="chart-overlay" id="chartOverlay" onclick="closeChart(event)">
-      <div class="chart-modal">
-        <div class="chart-title">
-          <span>📊 Expanded Nodes Comparison</span>
-          <button
-            class="btn btn-secondary"
-            onclick="closeChart(null)"
-            style="padding: 4px 10px; font-size: 11px"
+        <div class="sec">
+          <div class="sec-title">Speed</div>
+          <input type="range" id="speed" min="1" max="10" value="6" />
+          <div
+            style="
+              display: flex;
+              justify-content: space-between;
+              font-size: 0.62rem;
+              color: var(--muted);
+            "
           >
-            ✕
-          </button>
+            <span>Slow</span><span>Fast</span>
+          </div>
         </div>
-        <div class="chart-canvas-wrap">
-          <canvas id="chartCanvas"></canvas>
+      </div>
+
+      <!-- ── CENTER ── -->
+      <div class="center">
+        <div class="grid-wrap"><div id="grid"></div></div>
+
+        <div class="playbar">
+          <button class="btn btn-primary" id="btn-run" onclick="startRun()">
+            ▶ Run
+          </button>
+          <button class="btn btn-sec" id="btn-step" onclick="stepRun()">
+            ⏭ Step
+          </button>
+          <button
+            class="btn btn-sec"
+            id="btn-pause"
+            onclick="pauseRun()"
+            disabled
+          >
+            ⏸ Pause
+          </button>
+          <button class="btn btn-sec" onclick="doReset()">↩ Reset</button>
+          <button class="btn btn-sec" onclick="clearVis()">✦ Clear Path</button>
+          <button class="btn btn-sec" onclick="clearAll()">✕ Clear All</button>
+          <div class="spacer"></div>
+          <div class="legend">
+            <div class="leg-item">
+              <div
+                class="leg-dot"
+                style="
+                  background: var(--vis-visited);
+                  border: 1px solid #93c5fd;
+                "
+              ></div>
+              Visited
+            </div>
+            <div class="leg-item">
+              <div
+                class="leg-dot"
+                style="
+                  background: var(--vis-frontier);
+                  border: 1px solid #c4b5fd;
+                "
+              ></div>
+              Frontier
+            </div>
+            <div class="leg-item">
+              <div
+                class="leg-dot"
+                style="background: var(--vis-path); border: 1px solid #fcd34d"
+              ></div>
+              Path
+            </div>
+            <div class="leg-item">
+              <div
+                class="leg-dot"
+                style="background: #22c55e; border-radius: 50%"
+              ></div>
+              Start
+            </div>
+            <div class="leg-item">
+              <div
+                class="leg-dot"
+                style="background: #ef4444; border-radius: 50%"
+              ></div>
+              End
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── RIGHT PANEL ── -->
+      <div class="panel panel-r">
+        <div class="sec">
+          <div class="sec-title">Statistics</div>
+          <div class="stat-card">
+            <div class="stat-lbl">Nodes Expanded</div>
+            <div class="stat-val" id="s-exp">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">Path Cost (g)</div>
+            <div class="stat-val" id="s-cost">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-lbl">Path Steps</div>
+            <div class="stat-val" id="s-len">—</div>
+          </div>
+          <div class="stat-card" id="s-depth-card" style="display: none">
+            <div class="stat-lbl">Current Depth Limit</div>
+            <div class="stat-val sm">
+              <span id="s-depth" class="depth-badge">0</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-title">Progress</div>
+          <div class="pbar-wrap">
+            <div class="pbar-bg">
+              <div class="pbar-fill" id="pbar" style="width: 0%"></div>
+            </div>
+            <div class="pbar-lbl" id="pbar-lbl">Step 0 / 0</div>
+          </div>
+        </div>
+
+        <div class="sep"></div>
+
+        <div
+          class="sec"
+          style="flex: 1; display: flex; flex-direction: column; min-height: 0"
+        >
+          <div class="sec-title">Expansion Log</div>
+          <div class="log" id="log"></div>
         </div>
       </div>
     </div>
-
-    <!-- Toast -->
-    <div class="toast" id="toast"></div>
-    <script src="script.js"></script>
   </body>
 </html>
