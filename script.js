@@ -368,6 +368,7 @@ function genSteps() {
 //  GRID BUILD & RENDER
 // ═══════════════════════════════════════
 function buildGrid() {
+  clearVis();
   m = Math.max(
     3,
     Math.min(30, parseInt(document.getElementById("rows").value) || 12),
