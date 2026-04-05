@@ -18,6 +18,17 @@ const ALGO_DESC = {
     "Kết hợp g + h (f = g + h). Tối ưu và hiệu quả khi h là admissible heuristic.",
 };
 
+// Colors per algorithm for compare badges
+const CMP_COLORS = {
+  BFS: "#4f6ef7",
+  DFS: "#7c3aed",
+  UCS: "#059669",
+  DLS: "#d97706",
+  IDS: "#dc2626",
+  GBFS: "#0891b2",
+  Astar: "#be185d",
+};
+
 let M = [],
   m = 0,
   n = 0;
@@ -34,6 +45,13 @@ let steps = [],
 let timer = null,
   running = false;
 let expandedCount = 0;
+
+// ─── Compare Mode State ───────────────
+let compareMode = false;
+let cmpSelected = new Set(["BFS", "DFS", "Astar"]);
+let cmpState = {}; // algo -> { steps, stepIdx, expandedCount, done, result }
+let cmpTimer = null;
+let cmpRunning = false;
 
 // ═══════════════════════════════════════
 //  HEAP (Min)
@@ -348,20 +366,24 @@ function algoAstar() {
   return st;
 }
 
-function genSteps() {
-  // sync terrain weights from UI
+// Dispatch by name (used by both single-run and compare)
+function genStepsFor(algo) {
   document.querySelectorAll("#terrain-ui .tc-row input").forEach((inp, i) => {
     w[i + 1] = Math.max(1, parseInt(inp.value) || 1);
   });
-  const a = document.getElementById("algo").value;
-  if (a === "BFS") return algoBFS();
-  if (a === "DFS") return algoDFS();
-  if (a === "UCS") return algoUCS();
-  if (a === "DLS")
+  if (algo === "BFS") return algoBFS();
+  if (algo === "DFS") return algoDFS();
+  if (algo === "UCS") return algoUCS();
+  if (algo === "DLS")
     return algoDLS(parseInt(document.getElementById("dls-lim").value) || 10).st;
-  if (a === "IDS") return algoIDS();
-  if (a === "GBFS") return algoGBFS();
-  if (a === "Astar") return algoAstar();
+  if (algo === "IDS") return algoIDS();
+  if (algo === "GBFS") return algoGBFS();
+  if (algo === "Astar") return algoAstar();
+  return [];
+}
+
+function genSteps() {
+  return genStepsFor(document.getElementById("algo").value);
 }
 
 // ═══════════════════════════════════════
@@ -390,6 +412,7 @@ function buildGrid() {
   updateDrawModes();
   renderGrid();
   resetStats();
+  if (compareMode) buildCompareView();
 }
 
 function updateTerrainUI() {
@@ -405,10 +428,8 @@ function updateTerrainUI() {
     row.innerHTML = `
       <div class="tc-swatch" style="background:${TCOLORS[i]}"></div>
       <label>T${i}</label>
-      <input type="number" value="${w[i] || i}" min="1" max="999"
-        style="width:64px;margin:0"
-        onchange="w[${i}]=Math.max(1,parseInt(this.value)||1)">
-    `;
+      <input type="number" value="${w[i] || i}" min="1" max="999" style="width:64px;margin:0"
+        onchange="w[${i}]=Math.max(1,parseInt(this.value)||1)">`;
     c.appendChild(row);
   }
   updateDrawModes();
@@ -446,7 +467,6 @@ function renderGrid() {
   const cs = Math.max(18, Math.min(48, Math.min(avW, avH)));
   el.style.gridTemplateColumns = `repeat(${n}, ${cs}px)`;
   el.innerHTML = "";
-
   for (let i = 0; i < m; i++) {
     for (let j = 0; j < n; j++) {
       const d = document.createElement("div");
@@ -522,7 +542,6 @@ function genRandom() {
       M[i][j] = r < 0.22 ? 0 : Math.ceil(Math.random() * tcnt);
     }
   }
-  // carve guaranteed path
   let cx = sx,
     cy = sy;
   while (cx !== tx || cy !== ty) {
@@ -541,10 +560,11 @@ function genRandom() {
     }
   }
   renderGrid();
+  if (compareMode) buildCompareView();
 }
 
 // ═══════════════════════════════════════
-//  PLAYBACK
+//  SINGLE-MODE PLAYBACK
 // ═══════════════════════════════════════
 function startRun() {
   clearVis();
@@ -619,7 +639,7 @@ function doReset() {
   timer = null;
   running = false;
   const btn = document.getElementById("btn-run");
-  btn.textContent = "▶ Run";
+  btn.textContent = "▶ Chạy";
   btn.onclick = startRun;
   clearVis();
   renderGrid();
@@ -648,6 +668,7 @@ function clearAll() {
   clearVis();
   M = Array.from({ length: m }, () => new Array(n).fill(1));
   renderGrid();
+  if (compareMode) buildCompareView();
 }
 
 function resetStats() {
@@ -659,7 +680,7 @@ function resetStats() {
 }
 
 // ═══════════════════════════════════════
-//  STEP PROCESSOR
+//  STEP PROCESSOR (single mode)
 // ═══════════════════════════════════════
 function processStep(step) {
   if (step.t === "E") {
@@ -716,6 +737,418 @@ function updateProgressBar() {
 }
 
 // ═══════════════════════════════════════
+//  COMPARE MODE
+// ═══════════════════════════════════════
+function toggleCompareMode() {
+  compareMode = !compareMode;
+
+  const mainView = document.getElementById("main-view");
+  const cmpView = document.getElementById("compare-view");
+  const cmpSelSec = document.getElementById("cmp-sel-sec");
+  const algoSec = document.getElementById("algo-sec");
+  const singleStats = document.getElementById("single-stats");
+  const singleProg = document.getElementById("single-progress");
+  const cmpProgSec = document.getElementById("cmp-progress-sec");
+  const btn = document.getElementById("btn-compare-toggle");
+
+  if (compareMode) {
+    // Stop any running single animation
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+      running = false;
+    }
+
+    mainView.style.display = "none";
+    cmpView.style.display = "flex";
+    cmpSelSec.style.display = "block";
+    algoSec.style.display = "none";
+    singleStats.style.display = "none";
+    singleProg.style.display = "none";
+    cmpProgSec.style.display = "block";
+    btn.textContent = "✕ Thoát so sánh";
+    btn.classList.add("active");
+
+    buildCmpAlgoChecks();
+    buildCompareView();
+  } else {
+    stopCompare();
+
+    mainView.style.display = "";
+    cmpView.style.display = "none";
+    cmpSelSec.style.display = "none";
+    algoSec.style.display = "";
+    singleStats.style.display = "";
+    singleProg.style.display = "";
+    cmpProgSec.style.display = "none";
+    btn.textContent = "⊞ So sánh";
+    btn.classList.remove("active");
+  }
+}
+
+function buildCmpAlgoChecks() {
+  const c = document.getElementById("cmp-algo-checks");
+  c.innerHTML = "";
+  const algos = ["BFS", "DFS", "UCS", "DLS", "IDS", "GBFS", "Astar"];
+  algos.forEach((algo) => {
+    const label = document.createElement("label");
+    label.className = "cmp-check-label";
+    label.innerHTML = `
+      <input type="checkbox" value="${algo}" ${cmpSelected.has(algo) ? "checked" : ""}
+        onchange="toggleCmpAlgo('${algo}', this.checked)">
+      <span class="cmp-check-badge" style="background:${CMP_COLORS[algo]}">${algo}</span>`;
+    c.appendChild(label);
+  });
+}
+
+function toggleCmpAlgo(algo, checked) {
+  if (checked) cmpSelected.add(algo);
+  else cmpSelected.delete(algo);
+  buildCompareView();
+}
+
+// ── Build compare card grid ──
+function buildCompareView() {
+  stopCompare();
+  const container = document.getElementById("cmp-grids");
+  container.innerHTML = "";
+  document.getElementById("cmp-results-table").innerHTML = "";
+  document.getElementById("cmp-progress-list").innerHTML = "";
+
+  if (cmpSelected.size === 0) return;
+
+  [...cmpSelected].forEach((algo) => {
+    const color = CMP_COLORS[algo];
+    const card = document.createElement("div");
+    card.className = "cmp-card";
+    card.id = `cmp-card-${algo}`;
+    card.innerHTML = `
+      <div class="cmp-card-header" style="border-top: 3px solid ${color}">
+        <span class="cmp-algo-badge" style="background:${color}">${algo}</span>
+        <span class="cmp-card-status" id="cmp-status-${algo}">Ready</span>
+      </div>
+      <div class="cmp-grid-wrap" id="cmp-gwrap-${algo}">
+        <div id="cmp-grid-${algo}" class="cmp-mini-grid"></div>
+      </div>
+      <div class="cmp-card-stats">
+        <div class="cmp-mini-stat">
+          <div class="cmp-mini-stat-lbl">Expanded</div>
+          <div class="cmp-mini-stat-val" id="cmp-exp-${algo}">—</div>
+        </div>
+        <div class="cmp-mini-stat">
+          <div class="cmp-mini-stat-lbl">Cost</div>
+          <div class="cmp-mini-stat-val" id="cmp-cost-${algo}">—</div>
+        </div>
+        <div class="cmp-mini-stat">
+          <div class="cmp-mini-stat-lbl">Steps</div>
+          <div class="cmp-mini-stat-val" id="cmp-len-${algo}">—</div>
+        </div>
+      </div>`;
+    container.appendChild(card);
+    renderMiniGrid(algo);
+  });
+
+  // Build progress bars in right panel
+  const pl = document.getElementById("cmp-progress-list");
+  pl.innerHTML = "";
+  [...cmpSelected].forEach((algo) => {
+    const div = document.createElement("div");
+    div.style.marginBottom = "8px";
+    div.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+        <span class="cmp-algo-badge sm" style="background:${CMP_COLORS[algo]}">${algo}</span>
+        <span style="font-size:0.6rem;color:var(--muted);font-family:'JetBrains Mono',monospace" id="cmp-plbl-${algo}">0 / 0</span>
+      </div>
+      <div class="pbar-bg"><div class="pbar-fill" id="cmp-pbar-${algo}" style="width:0%;background:${CMP_COLORS[algo]}"></div></div>`;
+    pl.appendChild(div);
+  });
+}
+
+// ── Render a mini grid for one algorithm ──
+function renderMiniGrid(algo) {
+  const el = document.getElementById(`cmp-grid-${algo}`);
+  if (!el) return;
+
+  const cnt = cmpSelected.size;
+  // Estimate card width
+  const cols = cnt <= 2 ? 2 : cnt <= 4 ? 2 : 3;
+  const centerW = window.innerWidth - 265 - 220 - 40; // minus both panels
+  const cardW = Math.floor(centerW / cols) - 20;
+  const cs = Math.max(
+    5,
+    Math.min(18, Math.min(Math.floor((cardW - 10) / n), Math.floor(160 / m))),
+  );
+
+  el.style.gridTemplateColumns = `repeat(${n}, ${cs}px)`;
+  el.style.display = "inline-grid";
+  el.style.gap = "1px";
+  el.innerHTML = "";
+
+  const tColors = ["", "#bbf7d0", "#fef08a", "#fed7aa", "#fecaca"];
+
+  for (let i = 0; i < m; i++) {
+    for (let j = 0; j < n; j++) {
+      const d = document.createElement("div");
+      const t = M[i][j];
+      d.style.cssText = `width:${cs}px;height:${cs}px;position:relative;border-radius:1px;flex-shrink:0;`;
+      d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "#bbf7d0";
+      d.dataset.terrain = t;
+      d.id = `${algo}_c_${i}_${j}`;
+
+      if (i === sx && j === sy) {
+        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${Math.max(6, cs - 1)}px;line-height:1">🟢</span>`;
+      } else if (i === tx && j === ty) {
+        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${Math.max(6, cs - 1)}px;line-height:1">🔴</span>`;
+      }
+      el.appendChild(d);
+    }
+  }
+}
+
+function cmpCell(algo, x, y) {
+  return document.getElementById(`${algo}_c_${x}_${y}`);
+}
+
+// ── Run comparison ──
+function runComparison() {
+  if (cmpSelected.size === 0) return;
+  stopCompare();
+  buildCompareView(); // reset all grids
+
+  cmpState = {};
+  [...cmpSelected].forEach((algo) => {
+    cmpState[algo] = {
+      steps: genStepsFor(algo),
+      stepIdx: 0,
+      expandedCount: 0,
+      done: false,
+      result: null,
+    };
+    const el = document.getElementById(`cmp-status-${algo}`);
+    if (el) {
+      el.textContent = "Running…";
+      el.className = "cmp-card-status running";
+    }
+  });
+
+  cmpRunning = true;
+  document.getElementById("btn-cmp-run").disabled = true;
+  document.getElementById("btn-cmp-stop").disabled = false;
+  cmpAnimateLoop();
+}
+
+function cmpAnimateLoop() {
+  const allDone = Object.values(cmpState).every(
+    (s) => s.done || s.stepIdx >= s.steps.length,
+  );
+  if (allDone) {
+    // Mark any not explicitly found as done
+    Object.entries(cmpState).forEach(([algo, state]) => {
+      if (!state.done) {
+        state.done = true;
+        if (!state.result)
+          state.result = {
+            found: false,
+            cost: "—",
+            steps: "—",
+            expanded: state.expandedCount,
+          };
+      }
+    });
+    cmpRunning = false;
+    document.getElementById("btn-cmp-run").disabled = false;
+    document.getElementById("btn-cmp-stop").disabled = true;
+    showCmpResults();
+    return;
+  }
+
+  Object.entries(cmpState).forEach(([algo, state]) => {
+    if (state.done) return;
+    if (state.stepIdx >= state.steps.length) {
+      state.done = true;
+      return;
+    }
+    const step = state.steps[state.stepIdx++];
+    processCompareStep(algo, state, step);
+
+    // Update progress bar
+    const total = state.steps.length;
+    const pct = total ? (state.stepIdx / total) * 100 : 0;
+    const pb = document.getElementById(`cmp-pbar-${algo}`);
+    const pl = document.getElementById(`cmp-plbl-${algo}`);
+    if (pb) pb.style.width = pct + "%";
+    if (pl) pl.textContent = `${state.stepIdx} / ${total}`;
+  });
+
+  cmpTimer = setTimeout(cmpAnimateLoop, getDelay());
+}
+
+function processCompareStep(algo, state, step) {
+  if (step.t === "E") {
+    state.expandedCount++;
+    const c = cmpCell(algo, step.x, step.y);
+    if (
+      c &&
+      !(step.x === sx && step.y === sy) &&
+      !(step.x === tx && step.y === ty)
+    ) {
+      c.style.background = "rgba(79,110,247,0.6)";
+      c.style.outline = "1px solid rgba(79,110,247,0.75)";
+      c.dataset.state = "vis";
+    }
+    const expEl = document.getElementById(`cmp-exp-${algo}`);
+    if (expEl) expEl.textContent = state.expandedCount;
+  } else if (step.t === "Fr") {
+    const c = cmpCell(algo, step.x, step.y);
+    if (
+      c &&
+      c.dataset.state !== "vis" &&
+      !(step.x === sx && step.y === sy) &&
+      !(step.x === tx && step.y === ty)
+    ) {
+      c.style.background = "rgba(124,58,237,0.5)";
+      c.style.outline = "1px solid rgba(124,58,237,0.65)";
+      c.dataset.state = "front";
+    }
+  } else if (step.t === "F") {
+    step.path.forEach(([x, y], idx) => {
+      setTimeout(() => {
+        const c = cmpCell(algo, x, y);
+        if (c && !(x === sx && y === sy) && !(x === tx && y === ty)) {
+          c.style.background = "rgba(234,179,8,0.85)";
+          c.style.outline = "1.5px solid rgba(202,138,4,0.95)";
+          c.dataset.state = "path";
+        }
+      }, idx * 25);
+    });
+    const costEl = document.getElementById(`cmp-cost-${algo}`);
+    const lenEl = document.getElementById(`cmp-len-${algo}`);
+    if (costEl) costEl.textContent = step.g;
+    if (lenEl) lenEl.textContent = step.path.length - 1;
+    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    if (statusEl) {
+      statusEl.textContent = "✓ Found";
+      statusEl.className = "cmp-card-status found";
+    }
+    state.done = true;
+    state.result = {
+      found: true,
+      cost: step.g,
+      steps: step.path.length - 1,
+      expanded: state.expandedCount,
+    };
+  } else if (step.t === "N") {
+    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    if (statusEl) {
+      statusEl.textContent = "✗ No path";
+      statusEl.className = "cmp-card-status nofound";
+    }
+    state.done = true;
+    state.result = {
+      found: false,
+      cost: "—",
+      steps: "—",
+      expanded: state.expandedCount,
+    };
+  } else if (step.t === "I") {
+    // IDS depth marker — just skip in compare mode
+  }
+}
+
+function stopCompare() {
+  if (cmpTimer) {
+    clearTimeout(cmpTimer);
+    cmpTimer = null;
+  }
+  cmpRunning = false;
+  document.getElementById("btn-cmp-run").disabled = false;
+  document.getElementById("btn-cmp-stop").disabled = true;
+}
+
+function resetComparison() {
+  stopCompare();
+  buildCompareView();
+  document.getElementById("cmp-progress-list").innerHTML = "";
+  buildCmpAlgoChecks();
+  buildCompareView();
+}
+
+// ── Results comparison table ──
+function showCmpResults() {
+  const tableDiv = document.getElementById("cmp-results-table");
+
+  const results = Object.entries(cmpState)
+    .filter(([, s]) => s.result)
+    .map(([algo, s]) => ({ algo, ...s.result }));
+
+  if (!results.length) return;
+
+  const foundResults = results.filter((r) => r.found);
+  const minCost = foundResults.length
+    ? Math.min(...foundResults.map((r) => r.cost))
+    : null;
+  const minExp = foundResults.length
+    ? Math.min(...foundResults.map((r) => r.expanded))
+    : null;
+  const minStep = foundResults.length
+    ? Math.min(...foundResults.map((r) => r.steps))
+    : null;
+
+  // Sort: found first, then by cost asc
+  results.sort((a, b) => {
+    if (a.found && !b.found) return -1;
+    if (!a.found && b.found) return 1;
+    if (a.found && b.found) return a.cost - b.cost;
+    return 0;
+  });
+
+  tableDiv.innerHTML = `
+    <div class="cmp-table-wrap">
+      <div class="cmp-table-title">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <rect x="1" y="7" width="2" height="4" rx=".5" fill="currentColor"/>
+          <rect x="5" y="4" width="2" height="7" rx=".5" fill="currentColor"/>
+          <rect x="9" y="1" width="2" height="10" rx=".5" fill="currentColor"/>
+        </svg>
+        Kết quả so sánh
+      </div>
+      <table class="cmp-table">
+        <thead>
+          <tr>
+            <th>Thuật toán</th>
+            <th>Kết quả</th>
+            <th>Nodes mở rộng</th>
+            <th>Chi phí (g)</th>
+            <th>Số bước</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${results
+            .map((r, idx) => {
+              const isBestCost = r.found && r.cost === minCost;
+              const isBestExp = r.found && r.expanded === minExp;
+              const isBestStep = r.found && r.steps === minStep;
+              const rowClass = idx === 0 && r.found ? "cmp-winner-row" : "";
+              return `
+              <tr class="${rowClass}">
+                <td>
+                  <span class="cmp-algo-badge sm" style="background:${CMP_COLORS[r.algo]}">${r.algo}</span>
+                  ${idx === 0 && r.found ? '<span class="cmp-crown">🏆</span>' : ""}
+                </td>
+                <td><span class="cmp-result-badge ${r.found ? "found" : "nofound"}">${r.found ? "✓ Tìm thấy" : "✗ Không có"}</span></td>
+                <td class="${isBestExp ? "cmp-best-cell" : ""}">${r.expanded}${isBestExp ? ' <span class="cmp-star">★</span>' : ""}</td>
+                <td class="${isBestCost ? "cmp-best-cell" : ""}">${r.cost}${isBestCost ? ' <span class="cmp-star">★</span>' : ""}</td>
+                <td class="${isBestStep ? "cmp-best-cell" : ""}">${r.steps}${isBestStep ? ' <span class="cmp-star">★</span>' : ""}</td>
+              </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>
+      <div class="cmp-table-note">★ = tốt nhất trong nhóm tìm thấy đường</div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════
 //  UI UPDATES
 // ═══════════════════════════════════════
 function onAlgoChange() {
@@ -725,9 +1158,9 @@ function onAlgoChange() {
   document.getElementById("h-p").style.display =
     a === "GBFS" || a === "Astar" ? "block" : "none";
   document.getElementById("algo-desc").textContent = ALGO_DESC[a] || "";
-  document.querySelectorAll(".pill").forEach((p) => {
-    p.classList.toggle("active", p.dataset.a === a);
-  });
+  document
+    .querySelectorAll(".pill")
+    .forEach((p) => p.classList.toggle("active", p.dataset.a === a));
 }
 
 // ═══════════════════════════════════════
@@ -737,12 +1170,10 @@ window.addEventListener("DOMContentLoaded", () => {
   buildGrid();
   onAlgoChange();
 
-  // demo pattern: wall in middle row with gap
   const mid = Math.floor(m / 2);
   for (let j = 2; j < n - 2; j++) {
     if (j !== Math.floor(n / 2)) M[mid][j] = 0;
   }
-  // terrain variety in lower half
   for (let i = Math.floor(m / 2) + 1; i < m; i++) {
     for (let j = 0; j < n; j++) {
       if (M[i][j] !== 0 && !(i === tx && j === ty)) {
