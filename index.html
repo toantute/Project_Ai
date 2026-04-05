@@ -7,9 +7,6 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <!-- ════════════════════════════════
-     HEADER
-════════════════════════════════ -->
     <header>
       <div class="brand">
         <div class="brand-icon">🗺</div>
@@ -28,11 +25,16 @@
         <span class="pill" data-a="GBFS">GBFS</span>
         <span class="pill active" data-a="Astar">A★</span>
       </div>
+
+      <button
+        class="btn btn-compare-hdr"
+        id="btn-compare-toggle"
+        onclick="toggleCompareMode()"
+      >
+        ⊞ So sánh
+      </button>
     </header>
 
-    <!-- ════════════════════════════════
-     APP LAYOUT
-════════════════════════════════ -->
     <div class="app">
       <!-- ── LEFT PANEL ── -->
       <div class="panel">
@@ -77,25 +79,25 @@
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px">
             <div>
-              <label>Hàng (Rows)</label
-              ><input
+              <label>Hàng (Rows)</label>
+              <input
                 type="number"
                 id="rows"
                 value="12"
                 min="3"
                 max="30"
-                onchange="buildgrid()"
+                onchange="buildGrid()"
               />
             </div>
             <div>
-              <label>Cột (Cols)</label
-              ><input
+              <label>Cột (Cols)</label>
+              <input
                 type="number"
                 id="cols"
                 value="16"
                 min="3"
                 max="40"
-                onchange="buildgrid()"
+                onchange="buildGrid()"
               />
             </div>
           </div>
@@ -150,8 +152,8 @@
 
         <div class="sep"></div>
 
-        <!-- Algorithm -->
-        <div class="sec">
+        <!-- Algorithm (single mode) -->
+        <div class="sec" id="algo-sec">
           <div class="sec-title">
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
               <circle cx="6" cy="6" r="5" stroke="currentColor" />
@@ -173,14 +175,10 @@
             <option value="Astar" selected>A★ — A-Star Search</option>
           </select>
           <div id="algo-desc" class="algo-desc"></div>
-
-          <!-- DLS params -->
           <div id="dls-p" class="extra-params" style="display: none">
             <label>Giới hạn độ sâu</label>
             <input type="number" id="dls-lim" value="15" min="1" max="999" />
           </div>
-
-          <!-- GBFS / A* heuristic params -->
           <div id="h-p" class="extra-params" style="display: none">
             <label>Heuristic</label>
             <select id="htype">
@@ -196,6 +194,31 @@
               max="20"
               step="0.1"
             />
+          </div>
+        </div>
+
+        <!-- Compare Algorithm Select (hidden by default) -->
+        <div class="sec" id="cmp-sel-sec" style="display: none">
+          <div class="sec-title">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <path
+                d="M1 6h10M6 1v10"
+                stroke="currentColor"
+                stroke-linecap="round"
+              />
+            </svg>
+            Chọn thuật toán so sánh
+          </div>
+          <div id="cmp-algo-checks"></div>
+          <div
+            style="
+              font-size: 0.62rem;
+              color: var(--muted);
+              margin-top: 6px;
+              line-height: 1.4;
+            "
+          >
+            Chọn 2–7 thuật toán để chạy song song trên cùng một lưới
           </div>
         </div>
 
@@ -232,80 +255,165 @@
 
       <!-- ── CENTER ── -->
       <div class="center">
-        <div class="grid-wrap">
-          <div id="grid"></div>
+        <!-- Single-algo view -->
+        <div
+          id="main-view"
+          style="
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+          "
+        >
+          <div class="grid-wrap">
+            <div id="grid"></div>
+          </div>
+
+          <div class="playbar">
+            <button class="btn btn-primary" id="btn-run" onclick="startRun()">
+              ▶ Chạy
+            </button>
+            <button class="btn btn-sec" id="btn-step" onclick="stepRun()">
+              ⏭ Từng bước
+            </button>
+            <button
+              class="btn btn-sec"
+              id="btn-pause"
+              onclick="pauseRun()"
+              disabled
+            >
+              ⏸ Tạm dừng
+            </button>
+            <button class="btn btn-sec" onclick="doReset()">↩ Reset</button>
+            <button class="btn btn-sec" onclick="clearVis()">✦ Xoá path</button>
+            <button class="btn btn-sec" onclick="clearAll()">
+              ✕ Xoá tất cả
+            </button>
+
+            <div class="playbar-spacer"></div>
+
+            <div class="legend">
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="
+                    background: var(--vis-bg);
+                    border: 1.5px solid var(--vis-border);
+                    border-radius: 3px;
+                  "
+                ></div>
+                Đã duyệt
+              </div>
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="
+                    background: var(--front-bg);
+                    border: 1.5px solid var(--front-border);
+                    border-radius: 3px;
+                  "
+                ></div>
+                Frontier
+              </div>
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="
+                    background: var(--path-bg);
+                    border: 1.5px solid var(--path-border);
+                    border-radius: 3px;
+                  "
+                ></div>
+                Đường đi
+              </div>
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="background: #22c55e; border-radius: 50%"
+                ></div>
+                Start
+              </div>
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="background: #ef4444; border-radius: 50%"
+                ></div>
+                End
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- Playback bar -->
-        <div class="playbar">
-          <button class="btn btn-primary" id="btn-run" onclick="startRun()">
-            ▶ Chạy
-          </button>
-          <button class="btn btn-sec" id="btn-step" onclick="stepRun()">
-            ⏭ Từng bước
-          </button>
-          <button
-            class="btn btn-sec"
-            id="btn-pause"
-            onclick="pauseRun()"
-            disabled
+        <!-- Compare View (hidden by default) -->
+        <div
+          id="compare-view"
+          style="
+            display: none;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+          "
+        >
+          <!-- Compare playbar -->
+          <div class="playbar cmp-playbar">
+            <button
+              class="btn btn-primary"
+              id="btn-cmp-run"
+              onclick="runComparison()"
+            >
+              ▶ Chạy so sánh
+            </button>
+            <button
+              class="btn btn-sec"
+              id="btn-cmp-stop"
+              onclick="stopCompare()"
+              disabled
+            >
+              ⏹ Dừng
+            </button>
+            <button class="btn btn-sec" onclick="resetComparison()">
+              ↩ Reset
+            </button>
+            <div class="playbar-spacer"></div>
+            <div class="cmp-legend">
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="
+                    background: rgba(79, 110, 247, 0.55);
+                    border-radius: 3px;
+                    outline: 1px solid rgba(79, 110, 247, 0.7);
+                  "
+                ></div>
+                Đã duyệt
+              </div>
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="
+                    background: rgba(124, 58, 237, 0.45);
+                    border-radius: 3px;
+                  "
+                ></div>
+                Frontier
+              </div>
+              <div class="leg-item">
+                <div
+                  class="leg-dot"
+                  style="background: rgba(234, 179, 8, 0.8); border-radius: 3px"
+                ></div>
+                Đường đi
+              </div>
+            </div>
+          </div>
+
+          <!-- Grids container -->
+          <div
+            id="cmp-scroll"
+            style="flex: 1; overflow: auto; padding: 12px 14px 8px"
           >
-            ⏸ Tạm dừng
-          </button>
-          <button class="btn btn-sec" onclick="doReset()">↩ Reset</button>
-          <button class="btn btn-sec" onclick="clearVis()">✦ Xoá path</button>
-          <button class="btn btn-sec" onclick="clearAll()">✕ Xoá tất cả</button>
-
-          <div class="playbar-spacer"></div>
-
-          <div class="legend">
-            <div class="leg-item">
-              <div
-                class="leg-dot"
-                style="
-                  background: var(--vis-bg);
-                  border: 1.5px solid var(--vis-border);
-                  border-radius: 3px;
-                "
-              ></div>
-              Đã duyệt
-            </div>
-            <div class="leg-item">
-              <div
-                class="leg-dot"
-                style="
-                  background: var(--front-bg);
-                  border: 1.5px solid var(--front-border);
-                  border-radius: 3px;
-                "
-              ></div>
-              Frontier
-            </div>
-            <div class="leg-item">
-              <div
-                class="leg-dot"
-                style="
-                  background: var(--path-bg);
-                  border: 1.5px solid var(--path-border);
-                  border-radius: 3px;
-                "
-              ></div>
-              Đường đi
-            </div>
-            <div class="leg-item">
-              <div
-                class="leg-dot"
-                style="background: #22c55e; border-radius: 50%"
-              ></div>
-              Start
-            </div>
-            <div class="leg-item">
-              <div
-                class="leg-dot"
-                style="background: #ef4444; border-radius: 50%"
-              ></div>
-              End
-            </div>
+            <div id="cmp-grids" class="cmp-grids-container"></div>
+            <div id="cmp-results-table" class="cmp-results-wrap"></div>
           </div>
         </div>
       </div>
@@ -314,7 +422,7 @@
       <!-- ── RIGHT PANEL ── -->
       <div class="panel panel-r">
         <!-- Statistics -->
-        <div class="sec">
+        <div class="sec" id="single-stats">
           <div class="sec-title">
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
               <rect
@@ -365,7 +473,7 @@
         </div>
 
         <!-- Progress -->
-        <div class="sec">
+        <div class="sec" id="single-progress">
           <div class="sec-title">Tiến độ</div>
           <div class="pbar-wrap">
             <div class="pbar-bg">
@@ -373,6 +481,12 @@
             </div>
             <div class="pbar-lbl" id="pbar-lbl">Step 0 / 0</div>
           </div>
+        </div>
+
+        <!-- Compare progress (shown in compare mode) -->
+        <div class="sec" id="cmp-progress-sec" style="display: none">
+          <div class="sec-title">Tiến độ so sánh</div>
+          <div id="cmp-progress-list"></div>
         </div>
 
         <div class="sep"></div>
@@ -397,7 +511,6 @@
       </div>
       <!-- /right panel -->
     </div>
-    <!-- /app -->
 
     <script src="script.js"></script>
   </body>
