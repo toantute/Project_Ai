@@ -32,13 +32,12 @@ script.js
 style.css
 ```
 
-## Cách sử dụng
-
 * Chọn Web Visualizer
 * để mở file html
 
+## mở Web trực tiếp
 ```bash
-open index.html
+https://canhcutvuive.github.io/Project_Ai/
 ```
 
 ## Điều khiển:
