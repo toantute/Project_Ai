@@ -24,7 +24,7 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 
 ## mở Web trực tiếp
 ```bash
-https://canhcutvuive.github.io/Project_Ai/
+https://toantute.github.io/-Pathfinding-Visualizer/
 ```
 
 ## Điều khiển:
