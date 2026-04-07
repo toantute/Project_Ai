@@ -18,20 +18,24 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 * Chạy từng bước (step-by-step)
 * Hỗ trợ nhiều loại địa hình với chi phí khác nhau
 
-## Cài đặt
-
-```bash
-
-```
-
 ## Yêu cầu môi trường:
 
 * Web:
 * Trình duyệt (Chrome, Edge, Firefox, etc)
 
+## Cài đặt
+
+*Tải 3 file:
+```bash
++ index.html
++ script.js
++ style.css
+```
+
 ## Cách sử dụng
 
-## Web Visualizer
+* Chọn Web Visualizer
+* để mở file html
 
 ```bash
 open index.html
