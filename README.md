@@ -17,7 +17,6 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 * So sánh hai thuật toán chạy song song
 * Chạy từng bước (step-by-step)
 * Hỗ trợ nhiều loại địa hình với chi phí khác nhau
-* Demo C++ để test và phân tích thuật toán
 
 ## Cài đặt
 
@@ -29,10 +28,6 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 
 * Web:
 * Trình duyệt (Chrome, Edge, Firefox, etc)
-
-* C++:
-* Trình biên dịch hỗ trợ C++11 (g++, clang++, hoặc MSVC)
-* Không cần cài thêm thư viện ngoài
 
 ## Cách sử dụng
 
@@ -69,27 +64,6 @@ open index.html
 - So sánh: Chạy song song 2 thuật toán để đối chiếu hiệu suất.
 ---
 
-##C++ CLI Demo
-
-## Biên dịch:
-
-```bash
-g++ -std=c++11 -O2 -o AlgoDemo AlgoDemo.cpp -lm
-g++ -std=c++11 -O2 -o AlgoDemo2 AlgoDemo2.cpp -lm
-```
-
-## Chạy:
-
-```bash
-./AlgoDemo
-./AlgoDemo2
-```
-
-## Điều khiển (AlgoDemo2):
-
-* n → chạy từng bước
-* p → chạy đến hết
-
 ## Chế độ:
 
 * Mode 1: chạy 1 thuật toán
@@ -102,15 +76,12 @@ project/
 ├── index.html        # Giao diện web
 ├── style.css         # CSS
 ├── script.js         # Logic + thuật toán
-├── AlgoDemo.cpp      # CLI version 1
-├── AlgoDemo2.cpp     # CLI version 2 (step + compare)
 └── README.md
 ```
 
 ## Công nghệ sử dụng
 
 * HTML / CSS / JavaScript
-* C++ (C++11)
 * Các thuật toán tìm kiếm AI
 
 ## Tác giả
