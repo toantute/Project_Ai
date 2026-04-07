@@ -1,6 +1,6 @@
 # Pathfinding Visualizer
 
-Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pathfinding) trên mê cung. Bao gồm giao diện web và chương trình C++ dòng lệnh.
+Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pathfinding) trên mê cung. Bao gồm giao diện web và chương trình C++ dòng lệnh
 
 ## Tính năng
 
@@ -20,7 +20,6 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 
 ## Yêu cầu môi trường:
 
-* Web:
 * Trình duyệt (Chrome, Edge, Firefox, etc)
 
 ## mở Web trực tiếp
