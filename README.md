@@ -27,9 +27,9 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 
 *Tải 3 file:
 ```bash
-+ index.html
-+ script.js
-+ style.css
+index.html
+script.js
+style.css
 ```
 
 ## Cách sử dụng
