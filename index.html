@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
+    <div class="bg-flare"></div>
     <header>
       <div class="brand">
         <div class="brand-icon">🗺</div>
@@ -75,11 +76,11 @@
                 stroke="currentColor"
               />
             </svg>
-            Grid Setup
+            Cài đặt lưới
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px">
             <div>
-              <label>Hàng (Rows)</label>
+              <label>Hàng</label>
               <input
                 type="number"
                 id="rows"
@@ -90,7 +91,7 @@
               />
             </div>
             <div>
-              <label>Cột (Cols)</label>
+              <label>Cột</label>
               <input
                 type="number"
                 id="cols"
@@ -176,16 +177,29 @@
           </select>
           <div id="algo-desc" class="algo-desc"></div>
           <div id="dls-p" class="extra-params" style="display: none">
-            <label>Giới hạn độ sâu</label>
-            <input type="number" id="dls-lim" value="15" min="1" max="999" />
+            <span class="tc-label">Độ sâu cần duyệt:</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input
+                type="number"
+                id="dls-lim"
+                value="15"
+                min="1"
+                max="999"
+                class="tf"
+                style="width: 70px"
+              />
+              <label style="display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); cursor: pointer;">
+                <input type="checkbox" id="dls-auto" onchange="document.getElementById('dls-lim').disabled = this.checked;" /> Tới đích
+              </label>
+            </div>
           </div>
           <div id="h-p" class="extra-params" style="display: none">
-            <label>Heuristic</label>
+            <label>Hàm ước lượng</label>
             <select id="htype">
               <option value="0">Manhattan Distance</option>
               <option value="1">Euclidean Distance</option>
             </select>
-            <label>Multiplier</label>
+            <label>Hệ số nhân</label>
             <input
               type="number"
               id="hmul"
@@ -284,8 +298,8 @@
             >
               ⏸ Tạm dừng
             </button>
-            <button class="btn btn-sec" onclick="doReset()">↩ Reset</button>
-            <button class="btn btn-sec" onclick="clearVis()">✦ Xoá path</button>
+            <button class="btn btn-sec" onclick="doReset()">↩ Đặt lại</button>
+            <button class="btn btn-sec" onclick="clearVis()">✦ Xoá đường đi</button>
             <button class="btn btn-sec" onclick="clearAll()">
               ✕ Xoá tất cả
             </button>
@@ -313,7 +327,7 @@
                     border-radius: 3px;
                   "
                 ></div>
-                Frontier
+                Biên
               </div>
               <div class="leg-item">
                 <div
@@ -331,14 +345,14 @@
                   class="leg-dot"
                   style="background: #22c55e; border-radius: 50%"
                 ></div>
-                Start
+                Xuất phát
               </div>
               <div class="leg-item">
                 <div
                   class="leg-dot"
                   style="background: #ef4444; border-radius: 50%"
                 ></div>
-                End
+                Đích đến
               </div>
             </div>
           </div>
@@ -395,7 +409,7 @@
                     border-radius: 3px;
                   "
                 ></div>
-                Frontier
+                Biên
               </div>
               <div class="leg-item">
                 <div
@@ -453,7 +467,7 @@
             Thống kê
           </div>
           <div class="stat-card">
-            <div class="stat-lbl">Nodes mở rộng</div>
+            <div class="stat-lbl">Số nút đã duyệt</div>
             <div class="stat-val" id="s-exp">—</div>
           </div>
           <div class="stat-card">
@@ -465,7 +479,7 @@
             <div class="stat-val" id="s-len">—</div>
           </div>
           <div class="stat-card" id="s-depth-card" style="display: none">
-            <div class="stat-lbl">Depth Limit hiện tại</div>
+            <div class="stat-lbl">Độ sâu hiện tại</div>
             <div class="stat-val sm">
               <span class="depth-badge" id="s-depth">0</span>
             </div>
@@ -479,7 +493,7 @@
             <div class="pbar-bg">
               <div class="pbar-fill" id="pbar" style="width: 0%"></div>
             </div>
-            <div class="pbar-lbl" id="pbar-lbl">Step 0 / 0</div>
+            <div class="pbar-lbl" id="pbar-lbl">Bước 0 / 0</div>
           </div>
         </div>
 
@@ -494,7 +508,7 @@
         <!-- Expansion Log -->
         <div
           class="sec"
-          style="flex: 1; display: flex; flex-direction: column; min-height: 0"
+          style="display: flex; flex-direction: column; flex-shrink: 0"
         >
           <div class="sec-title">
             <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
