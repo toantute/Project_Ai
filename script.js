@@ -4,7 +4,7 @@
 const dx = [-1, 0, 1, 0];
 const dy = [0, 1, 0, -1];
 
-const TCOLORS = ["", "#BBF7D0", "#FEF08A", "#FED7AA", "#FECACA"];
+const TCOLORS = ["", "#166534", "#854d0e", "#9a3412", "#7f1d1d"];
 const TNAMES = ["", "T1 · Grass", "T2 · Sand", "T3 · Rock", "T4 · Swamp"];
 
 const ALGO_DESC = {
@@ -20,13 +20,13 @@ const ALGO_DESC = {
 
 // Colors per algorithm for compare badges
 const CMP_COLORS = {
-  BFS: "#4f6ef7",
-  DFS: "#7c3aed",
-  UCS: "#059669",
-  DLS: "#d97706",
-  IDS: "#dc2626",
-  GBFS: "#0891b2",
-  Astar: "#be185d",
+  BFS: "#00f0ff",
+  DFS: "#8b5cf6",
+  UCS: "#22c55e",
+  DLS: "#f59e0b",
+  IDS: "#ef4444",
+  GBFS: "#0ea5e9",
+  Astar: "#ec4899",
 };
 
 let M = [],
@@ -121,9 +121,10 @@ function wmin() {
   return Math.min(...w.slice(1, tcnt + 1));
 }
 
-function heuristic(x, y) {
-  const ht = parseInt(document.getElementById("htype").value);
-  const mul = parseFloat(document.getElementById("hmul").value) || 1;
+function heuristic(x, y, ht, mul) {
+  if (ht === undefined) ht = parseInt(document.getElementById("htype").value);
+  if (mul === undefined)
+    mul = parseFloat(document.getElementById("hmul").value) || 1;
   const ddx = Math.abs(x - tx),
     ddy = Math.abs(y - ty);
   if (ht === 1) return Math.sqrt(ddx * ddx + ddy * ddy) * wmin() * mul;
@@ -240,15 +241,20 @@ function algoUCS() {
   return st;
 }
 
-function algoDLS(lim) {
+function algoDLS(lim, ignoreFr = false) {
   const st = [],
     dmin = A2(Infinity),
     par = A2(null);
   let reachedLim = false;
+  let ops = 0;
   dmin[sx][sy] = 0;
   par[sx][sy] = [sx, sy];
   const stack = [{ x: sx, y: sy, d: 0, g: 0 }];
   while (stack.length) {
+    if (++ops > 500000) {
+      st.push({ t: "Err" });
+      return { st, found: false, reachedLim: false, error: true };
+    }
     const c = stack.pop();
     const { x, y } = c;
     if (c.d === lim) reachedLim = true;
@@ -257,15 +263,27 @@ function algoDLS(lim) {
       st.push({ t: "F", path: traceParent(par), g: c.g });
       return { st, found: true, reachedLim };
     }
+
+    // Tối ưu hoá đường đi: xếp các node kề theo khoảng cách Manhattan tới đích.
+    // Đẩy node xa đích vào trước, node gần đích vào sau, để Stack sẽ POP node gần đích ra xử lý ĐẦU TIÊN.
+    const nbs = [];
     for (let i = 0; i < 4; i++) {
-      const nx = x + dx[i],
-        ny = y + dy[i],
-        nd = c.d + 1;
+      nbs.push({ nx: x + dx[i], ny: y + dy[i] });
+    }
+    nbs.sort((a, b) => {
+      const da = Math.abs(a.nx - tx) + Math.abs(a.ny - ty);
+      const db = Math.abs(b.nx - tx) + Math.abs(b.ny - ty);
+      return db - da;
+    });
+
+    for (let i = 0; i < 4; i++) {
+      const { nx, ny } = nbs[i];
+      const nd = c.d + 1;
       if (ok(nx, ny) && M[nx][ny] && nd <= lim && nd < dmin[nx][ny]) {
         dmin[nx][ny] = nd;
         par[nx][ny] = [x, y];
         stack.push({ x: nx, y: ny, d: nd, g: c.g + w[M[nx][ny]] });
-        st.push({ t: "Fr", x: nx, y: ny });
+        if (!ignoreFr) st.push({ t: "Fr", x: nx, y: ny });
       }
     }
   }
@@ -273,29 +291,47 @@ function algoDLS(lim) {
   return { st, found: false, reachedLim };
 }
 
-function algoIDS() {
-  const all = [],
-    cap = m * n;
-  for (let l = 0; l <= cap; l++) {
+function algoIDS(cfgCap) {
+  const all = [];
+  const autoEl = document.getElementById("dls-auto");
+  const autoChecked = autoEl ? autoEl.checked : false;
+  const baseCap = autoChecked
+    ? 9999
+    : parseInt(document.getElementById("dls-lim").value) || 15;
+  const cap = cfgCap !== undefined ? cfgCap : baseCap;
+
+  for (let l = 1; l <= cap; l++) {
     all.push({ t: "I", l });
-    const { st, found, reachedLim } = algoDLS(l);
-    all.push(...st);
+    all.push({ t: "C" });
+    const { st, found, error } = algoDLS(l, true);
+
+    // Remove trailing N or Err before appending steps
+    if (st.length > 0) {
+      const last = st[st.length - 1];
+      if (last.t === "N" || last.t === "Err") st.pop();
+    }
+
+    for (let i = 0; i < st.length; i++) all.push(st[i]);
+
     if (found) return all;
-    if (!reachedLim) break;
+    if (error) {
+      all.push({ t: "Err" });
+      return all;
+    }
   }
-  if (all[all.length - 1]?.t === "N") all.pop();
+
   all.push({ t: "N" });
   return all;
 }
 
-function algoGBFS() {
+function algoGBFS(ht, mul) {
   const st = [],
     vis = A2(false),
     par = A2(null);
   const pq = new Heap((a, b) => a.f - b.f);
   vis[sx][sy] = true;
   par[sx][sy] = [sx, sy];
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy) });
+  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, ht, mul) });
   while (!pq.empty()) {
     const c = pq.pop();
     const { x, y } = c;
@@ -315,7 +351,7 @@ function algoGBFS() {
           y: ny,
           d: c.d + 1,
           g: c.g + w[M[nx][ny]],
-          f: heuristic(nx, ny),
+          f: heuristic(nx, ny, ht, mul),
         });
         st.push({ t: "Fr", x: nx, y: ny });
       }
@@ -325,14 +361,14 @@ function algoGBFS() {
   return st;
 }
 
-function algoAstar() {
+function algoAstar(ht, mul) {
   const st = [],
     dis = A2(Infinity),
     par = A2(null);
   const pq = new Heap((a, b) => a.f - b.f);
   dis[sx][sy] = 0;
   par[sx][sy] = [sx, sy];
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy) });
+  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, ht, mul) });
   while (!pq.empty()) {
     const c = pq.pop();
     const { x, y } = c;
@@ -355,7 +391,7 @@ function algoAstar() {
             y: ny,
             d: c.d + 1,
             g: ng,
-            f: ng + heuristic(nx, ny),
+            f: ng + heuristic(nx, ny, ht, mul),
           });
           st.push({ t: "Fr", x: nx, y: ny });
         }
@@ -367,18 +403,27 @@ function algoAstar() {
 }
 
 // Dispatch by name (used by both single-run and compare)
-function genStepsFor(algo) {
+function genStepsFor(algo, cfg) {
   document.querySelectorAll("#terrain-ui .tc-row input").forEach((inp, i) => {
     w[i + 1] = Math.max(1, parseInt(inp.value) || 1);
   });
+
+  const autoEl = document.getElementById("dls-auto");
+  const dLimitVal =
+    autoEl && autoEl.checked
+      ? 9999
+      : parseInt(document.getElementById("dls-lim").value) || 10;
+  const dLimit = cfg && cfg.dls !== undefined ? cfg.dls : dLimitVal;
+  const hType = cfg ? cfg.ht : undefined;
+  const hMul = cfg ? cfg.mul : undefined;
+
   if (algo === "BFS") return algoBFS();
   if (algo === "DFS") return algoDFS();
   if (algo === "UCS") return algoUCS();
-  if (algo === "DLS")
-    return algoDLS(parseInt(document.getElementById("dls-lim").value) || 10).st;
-  if (algo === "IDS") return algoIDS();
-  if (algo === "GBFS") return algoGBFS();
-  if (algo === "Astar") return algoAstar();
+  if (algo === "DLS") return algoDLS(dLimit).st;
+  if (algo === "IDS") return algoIDS(dLimit);
+  if (algo === "GBFS") return algoGBFS(hType, hMul);
+  if (algo === "Astar") return algoAstar(hType, hMul);
   return [];
 }
 
@@ -439,10 +484,10 @@ function updateDrawModes() {
   const c = document.getElementById("draw-modes");
   c.innerHTML = "";
   const modes = [
-    { id: "wall", label: "⬛ Wall" },
-    { id: "erase", label: "◻ Erase" },
-    { id: "start", label: "🟢 Start" },
-    { id: "end", label: "🔴 End" },
+    { id: "wall", label: "⬛ Tường" },
+    { id: "erase", label: "◻ Xoá" },
+    { id: "start", label: "🟢 Xuất phát" },
+    { id: "end", label: "🔴 Đích đến" },
   ];
   for (let i = 1; i <= tcnt; i++)
     modes.push({ id: `t${i}`, label: `${TNAMES[i].split(" ")[0]}` });
@@ -618,7 +663,7 @@ function pauseRun() {
   timer = null;
   running = false;
   const btn = document.getElementById("btn-run");
-  btn.textContent = "▶ Resume";
+  btn.textContent = "▶ Tiếp tục";
   btn.onclick = resumeRun;
   btn.disabled = false;
   document.getElementById("btn-pause").disabled = true;
@@ -627,7 +672,7 @@ function pauseRun() {
 function resumeRun() {
   running = true;
   const btn = document.getElementById("btn-run");
-  btn.textContent = "▶ Run";
+  btn.textContent = "▶ Chạy";
   btn.onclick = startRun;
   btn.disabled = true;
   document.getElementById("btn-pause").disabled = false;
@@ -664,6 +709,16 @@ function clearVis() {
   document.getElementById("btn-pause").disabled = true;
 }
 
+function clearVisOnly() {
+  document.querySelectorAll(".cell").forEach((c) => {
+    c.classList.remove("vis", "front", "onpath", "popping", "pathpop");
+    const ov = c.querySelector(".cell-ov");
+    if (ov) ov.style.animation = "";
+  });
+  expandedCount = 0;
+  document.getElementById("s-exp").textContent = "—";
+}
+
 function clearAll() {
   clearVis();
   M = Array.from({ length: m }, () => new Array(n).fill(1));
@@ -692,7 +747,10 @@ function processStep(step) {
       setTimeout(() => c.classList.remove("popping"), 380);
     }
     document.getElementById("s-exp").textContent = expandedCount;
-    addLog("expand", `▸ (${step.x},${step.y})  g=${step.g}  d=${step.d}`);
+    addLog(
+      "expand",
+      `<span style="color:var(--accent)">📍 Đang xét ô <b>(${step.x}, ${step.y})</b></span> <br> <span style="opacity:0.75; font-size: 0.9em;">↳ Chi phí từ điểm bắt đầu: <b>${step.g}</b> &nbsp;|&nbsp; Đi qua: <b>${step.d} bước</b></span>`,
+    );
   } else if (step.t === "Fr") {
     const c = cell(step.x, step.y);
     if (c && !c.classList.contains("vis")) c.classList.add("front");
@@ -710,13 +768,26 @@ function processStep(step) {
     document.getElementById("s-len").textContent = step.path.length - 1;
     addLog(
       "found",
-      `✓ Tìm thấy! Cost=${step.g}  Steps=${step.path.length - 1}`,
+      `🎉 <b>Thành công! Đã tìm ra đường đi tới đích.</b><br><span style="opacity:0.9; font-size: 0.9em; font-weight: 500;">Tổng điểm chi phí: <b>${step.g}</b><br>Tổng số bước di chuyển: <b>${step.path.length - 1} bước</b></span>`,
     );
   } else if (step.t === "N") {
-    addLog("nofound", "✗ Không tìm thấy đường đi");
+    addLog(
+      "nofound",
+      `❌ <b>Rất tiếc!</b> Không thể tìm thấy đường nào đi tới đích.`,
+    );
+  } else if (step.t === "Err") {
+    addLog(
+      "nofound",
+      `⚠️ <b>Cảnh báo!</b> Bản đồ quá rộng, thuật toán quá tải (out of memory). Đã tự ngắt để tránh treo Tab browser.`,
+    );
   } else if (step.t === "I") {
     document.getElementById("s-depth").textContent = step.l;
-    addLog("info", `── IDS: depth limit = ${step.l}`);
+    addLog(
+      "info",
+      `🔄 <b>Đang quét (IDS): Độ sâu cần duyệt = <b>${step.l}</b></b>`,
+    );
+  } else if (step.t === "C") {
+    clearVisOnly();
   }
 }
 
@@ -724,7 +795,7 @@ function addLog(cls, msg) {
   const log = document.getElementById("log");
   const e = document.createElement("div");
   e.className = `le ${cls}`;
-  e.textContent = msg;
+  e.innerHTML = msg;
   log.appendChild(e);
   log.scrollTop = log.scrollHeight;
 }
@@ -733,7 +804,7 @@ function updateProgressBar() {
   const p = steps.length ? (stepIdx / steps.length) * 100 : 0;
   document.getElementById("pbar").style.width = p + "%";
   document.getElementById("pbar-lbl").textContent =
-    `Step ${stepIdx} / ${steps.length}`;
+    `Bước ${stepIdx} / ${steps.length}`;
 }
 
 // ═══════════════════════════════════════
@@ -822,26 +893,48 @@ function buildCompareView() {
     const card = document.createElement("div");
     card.className = "cmp-card";
     card.id = `cmp-card-${algo}`;
+    let extraParams = "";
+    if (algo === "DLS" || algo === "IDS") {
+      extraParams = `<div class="cmp-card-params">
+        <label>Độ sâu:</label>
+        <input type="number" id="cmp-dls-${algo}" value="15" min="1" style="width: 40px" />
+        <label style="display:flex;align-items:center;gap:3px;cursor:pointer">
+          <input type="checkbox" id="cmp-auto-${algo}" onchange="document.getElementById('cmp-dls-${algo}').disabled = this.checked" /> Max
+        </label>
+      </div>`;
+    } else if (algo === "GBFS" || algo === "Astar") {
+      extraParams = `<div class="cmp-card-params">
+        <label>Heuristic:</label>
+        <select id="cmp-ht-${algo}">
+          <option value="0">Manhattan</option>
+          <option value="1">Euclidean</option>
+        </select>
+        <label>Mul:</label>
+        <input type="number" id="cmp-hmul-${algo}" value="1" step="0.1" style="width: 40px" />
+      </div>`;
+    }
+
     card.innerHTML = `
       <div class="cmp-card-header" style="border-top: 3px solid ${color}">
         <span class="cmp-algo-badge" style="background:${color}">${algo}</span>
         <span class="cmp-card-status" id="cmp-status-${algo}">Ready</span>
       </div>
+      ${extraParams}
       <div class="cmp-grid-wrap" id="cmp-gwrap-${algo}">
         <div id="cmp-grid-${algo}" class="cmp-mini-grid"></div>
       </div>
       <div class="cmp-card-stats">
         <div class="cmp-mini-stat">
-          <div class="cmp-mini-stat-lbl">Expanded</div>
-          <div class="cmp-mini-stat-val" id="cmp-exp-${algo}">—</div>
+           <div class="cmp-mini-stat-lbl">Expanded</div>
+           <div class="cmp-mini-stat-val" id="cmp-exp-${algo}">—</div>
         </div>
         <div class="cmp-mini-stat">
-          <div class="cmp-mini-stat-lbl">Cost</div>
-          <div class="cmp-mini-stat-val" id="cmp-cost-${algo}">—</div>
+           <div class="cmp-mini-stat-lbl">Cost</div>
+           <div class="cmp-mini-stat-val" id="cmp-cost-${algo}">—</div>
         </div>
         <div class="cmp-mini-stat">
-          <div class="cmp-mini-stat-lbl">Steps</div>
-          <div class="cmp-mini-stat-val" id="cmp-len-${algo}">—</div>
+           <div class="cmp-mini-stat-lbl">Steps</div>
+           <div class="cmp-mini-stat-val" id="cmp-len-${algo}">—</div>
         </div>
       </div>`;
     container.appendChild(card);
@@ -869,36 +962,29 @@ function renderMiniGrid(algo) {
   const el = document.getElementById(`cmp-grid-${algo}`);
   if (!el) return;
 
-  const cnt = cmpSelected.size;
-  // Estimate card width
-  const cols = cnt <= 2 ? 2 : cnt <= 4 ? 2 : 3;
-  const centerW = window.innerWidth - 265 - 220 - 40; // minus both panels
-  const cardW = Math.floor(centerW / cols) - 20;
-  const cs = Math.max(
-    5,
-    Math.min(18, Math.min(Math.floor((cardW - 10) / n), Math.floor(160 / m))),
-  );
-
-  el.style.gridTemplateColumns = `repeat(${n}, ${cs}px)`;
-  el.style.display = "inline-grid";
+  el.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+  el.style.display = "grid";
   el.style.gap = "1px";
+  el.style.width = "100%";
+  el.style.maxWidth = "300px";
+  el.style.aspectRatio = `${n} / ${m}`;
   el.innerHTML = "";
 
-  const tColors = ["", "#bbf7d0", "#fef08a", "#fed7aa", "#fecaca"];
+  const tColors = ["", "#166534", "#854d0e", "#9a3412", "#7f1d1d"];
 
   for (let i = 0; i < m; i++) {
     for (let j = 0; j < n; j++) {
       const d = document.createElement("div");
       const t = M[i][j];
-      d.style.cssText = `width:${cs}px;height:${cs}px;position:relative;border-radius:1px;flex-shrink:0;`;
-      d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "#bbf7d0";
+      d.style.cssText = `position:relative;border-radius:1px;width:100%;height:100%;`;
+      d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "#166534";
       d.dataset.terrain = t;
       d.id = `${algo}_c_${i}_${j}`;
 
       if (i === sx && j === sy) {
-        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${Math.max(6, cs - 1)}px;line-height:1">🟢</span>`;
+        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto">🟢</span>`;
       } else if (i === tx && j === ty) {
-        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:${Math.max(6, cs - 1)}px;line-height:1">🔴</span>`;
+        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto">🔴</span>`;
       }
       el.appendChild(d);
     }
@@ -917,8 +1003,24 @@ function runComparison() {
 
   cmpState = {};
   [...cmpSelected].forEach((algo) => {
+    let cfg = {};
+    if (algo === "DLS" || algo === "IDS") {
+      const dlsEl = document.getElementById(`cmp-dls-${algo}`);
+      const autoEl = document.getElementById(`cmp-auto-${algo}`);
+      if (autoEl && autoEl.checked) {
+        cfg.dls = 9999;
+      } else if (dlsEl) {
+        cfg.dls = parseInt(dlsEl.value) || 15;
+      }
+    } else if (algo === "GBFS" || algo === "Astar") {
+      const htEl = document.getElementById(`cmp-ht-${algo}`);
+      const hmulEl = document.getElementById(`cmp-hmul-${algo}`);
+      if (htEl) cfg.ht = parseInt(htEl.value) || 0;
+      if (hmulEl) cfg.mul = parseFloat(hmulEl.value) || 1;
+    }
+
     cmpState[algo] = {
-      steps: genStepsFor(algo),
+      steps: genStepsFor(algo, cfg),
       stepIdx: 0,
       expandedCount: 0,
       done: false,
@@ -1050,8 +1152,47 @@ function processCompareStep(algo, state, step) {
       steps: "—",
       expanded: state.expandedCount,
     };
+  } else if (step.t === "Err") {
+    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    if (statusEl) {
+      statusEl.textContent = "⚠ Overloaded";
+      statusEl.className = "cmp-card-status nofound";
+    }
+    state.done = true;
+    state.result = {
+      found: false,
+      cost: "—",
+      steps: "—",
+      expanded: "OOM",
+    };
   } else if (step.t === "I") {
     // IDS depth marker — just skip in compare mode
+  } else if (step.t === "C") {
+    clearCompareVis(algo);
+  }
+}
+
+function clearCompareVis(algo) {
+  const tColors = ["", "#166534", "#854d0e", "#9a3412", "#7f1d1d"];
+  for (let i = 0; i < m; i++) {
+    for (let j = 0; j < n; j++) {
+      const c = cmpCell(algo, i, j);
+      if (c && c.dataset.state) {
+        delete c.dataset.state;
+        const t = M[i][j];
+        if (i === sx && j === sy) {
+          c.style.background = tColors[t] || "#166534";
+          c.style.outline = "";
+        } else if (i === tx && j === ty) {
+          c.style.background = tColors[t] || "#166534";
+          c.style.outline = "";
+        } else {
+          c.style.background =
+            t === 0 ? "var(--wall)" : tColors[t] || "#166534";
+          c.style.outline = "";
+        }
+      }
+    }
   }
 }
 
@@ -1094,11 +1235,15 @@ function showCmpResults() {
     ? Math.min(...foundResults.map((r) => r.steps))
     : null;
 
-  // Sort: found first, then by cost asc
+  // Sort: found first, then by cost asc, then by steps asc, then by expanded asc
   results.sort((a, b) => {
     if (a.found && !b.found) return -1;
     if (!a.found && b.found) return 1;
-    if (a.found && b.found) return a.cost - b.cost;
+    if (a.found && b.found) {
+      if (a.cost !== b.cost) return a.cost - b.cost;
+      if (a.steps !== b.steps) return a.steps - b.steps;
+      return a.expanded - b.expanded;
+    }
     return 0;
   });
 
@@ -1117,7 +1262,7 @@ function showCmpResults() {
           <tr>
             <th>Thuật toán</th>
             <th>Kết quả</th>
-            <th>Nodes mở rộng</th>
+            <th>Số nút đã duyệt</th>
             <th>Chi phí (g)</th>
             <th>Số bước</th>
           </tr>
@@ -1154,7 +1299,7 @@ function showCmpResults() {
 function onAlgoChange() {
   const a = document.getElementById("algo").value;
   document.getElementById("dls-p").style.display =
-    a === "DLS" ? "block" : "none";
+    a === "DLS" || a === "IDS" ? "block" : "none";
   document.getElementById("h-p").style.display =
     a === "GBFS" || a === "Astar" ? "block" : "none";
   document.getElementById("algo-desc").textContent = ALGO_DESC[a] || "";
