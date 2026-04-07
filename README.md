@@ -24,7 +24,7 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 
 ## mở Web trực tiếp
 ```bash
-https://toantute.github.io/-Pathfinding-Visualizer/
+https://toantute.github.io/Pathfinding-Visualizer/
 ```
 
 ## Điều khiển:
