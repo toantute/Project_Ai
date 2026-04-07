@@ -23,18 +23,6 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 * Web:
 * Trình duyệt (Chrome, Edge, Firefox, etc)
 
-## Cài đặt
-
-*Tải 3 file:
-```bash
-index.html
-script.js
-style.css
-```
-
-* Chọn Web Visualizer
-* để mở file html
-
 ## mở Web trực tiếp
 ```bash
 https://canhcutvuive.github.io/Project_Ai/
@@ -84,7 +72,7 @@ project/
 
 ## Công nghệ sử dụng
 
-* HTML / CSS / JavaScript
+* HTML /CSS / JavaScript
 * Các thuật toán tìm kiếm AI
 
 ## Tác giả
