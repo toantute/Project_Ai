@@ -69,7 +69,7 @@ open index.html
 - So sánh: Chạy song song 2 thuật toán để đối chiếu hiệu suất.
 ---
 
-## 2. C++ CLI Demo
+##C++ CLI Demo
 
 ## Biên dịch:
 
