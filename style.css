@@ -23,18 +23,18 @@
   --amber: #f59e0b;
   --purple: #8b5cf6;
 
-  --wall: #1e243b;
-  --t1: #166534;
-  --t2: #854d0e;
-  --t3: #9a3412;
-  --t4: #7f1d1d;
+  --wall: #0f1220;
+  --t1: #22863a;   /* Cỏ - Xanh lá tươi */
+  --t2: #b5860d;   /* Cát - Vàng ánh */
+  --t3: #6d3aaa;   /* Đá - Tím rực */
+  --t4: #c0292b;   /* Đầm lầy - Đỏ tươi */
 
-  --vis-bg: rgba(0, 240, 255, 0.2);
-  --vis-border: rgba(0, 240, 255, 0.6);
-  --front-bg: rgba(139, 92, 246, 0.2);
-  --front-border: rgba(139, 92, 246, 0.6);
-  --path-bg: rgba(250, 204, 21, 0.4);
-  --path-border: rgba(250, 204, 21, 0.9);
+  --vis-bg: rgba(255, 140, 0, 0.55);       /* Cam ấm - Đã duyệt */
+  --vis-border: rgba(255, 165, 0, 0.95);
+  --front-bg: rgba(236, 72, 153, 0.22);    /* Hồng - Biên */
+  --front-border: rgba(236, 72, 153, 0.75);
+  --path-bg: rgba(74, 222, 128, 0.4);      /* Xanh lá neon - Đường đi */
+  --path-border: rgba(74, 222, 128, 0.95);
 
   --shadow-sm:
     0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
@@ -765,7 +765,7 @@ input[type="range"] {
 .cmp-card-params select {
   font-size: 0.65rem;
   padding: 2px 4px;
-  background: rgba(255, 255, 255, 0.05);
+  background: #1e2440;
   color: #fff;
   border: 1px solid var(--border-s);
   border-radius: 4px;
@@ -774,6 +774,16 @@ input[type="range"] {
 .cmp-card-params input:focus,
 .cmp-card-params select:focus {
   border-color: var(--accent);
+}
+.cmp-card-params select option {
+  background: #1e2440;
+  color: #fff;
+}
+
+/* Fix all select option backgrounds globally */
+select option {
+  background: #1a1f36;
+  color: #fff;
 }
 
 .cmp-algo-badge {
