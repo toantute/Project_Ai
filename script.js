@@ -167,8 +167,10 @@ function algoBFS() {
       if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
         vis[nx][ny] = true;
         par[nx][ny] = [x, y];
-        q.push({ x: nx, y: ny, d: c.d + 1, g: c.g + w[M[nx][ny]] });
-        st.push({ t: "Fr", x: nx, y: ny });
+        const ng = c.g + w[M[nx][ny]];
+        const nd = c.d + 1;
+        q.push({ x: nx, y: ny, d: nd, g: ng });
+        st.push({ t: "Fr", x: nx, y: ny, g: ng, d: nd });
       }
     }
   }
@@ -197,8 +199,10 @@ function algoDFS() {
       if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
         vis[nx][ny] = true;
         par[nx][ny] = [x, y];
-        stack.push({ x: nx, y: ny, d: c.d + 1, g: c.g + w[M[nx][ny]] });
-        st.push({ t: "Fr", x: nx, y: ny });
+        const ng = c.g + w[M[nx][ny]];
+        const nd = c.d + 1;
+        stack.push({ x: nx, y: ny, d: nd, g: ng });
+        st.push({ t: "Fr", x: nx, y: ny, g: ng, d: nd });
       }
     }
   }
@@ -231,8 +235,9 @@ function algoUCS() {
         if (ng < dis[nx][ny]) {
           dis[nx][ny] = ng;
           par[nx][ny] = [x, y];
-          pq.push({ x: nx, y: ny, d: c.d + 1, g: ng, f: ng });
-          st.push({ t: "Fr", x: nx, y: ny });
+          const nd = c.d + 1;
+          pq.push({ x: nx, y: ny, d: nd, g: ng, f: ng });
+          st.push({ t: "Fr", x: nx, y: ny, g: ng, f: ng, d: nd });
         }
       }
     }
@@ -282,8 +287,9 @@ function algoDLS(lim, ignoreFr = false) {
       if (ok(nx, ny) && M[nx][ny] && nd <= lim && nd < dmin[nx][ny]) {
         dmin[nx][ny] = nd;
         par[nx][ny] = [x, y];
-        stack.push({ x: nx, y: ny, d: nd, g: c.g + w[M[nx][ny]] });
-        if (!ignoreFr) st.push({ t: "Fr", x: nx, y: ny });
+        const ng = c.g + w[M[nx][ny]];
+        stack.push({ x: nx, y: ny, d: nd, g: ng });
+        if (!ignoreFr) st.push({ t: "Fr", x: nx, y: ny, g: ng, d: nd });
       }
     }
   }
@@ -303,7 +309,7 @@ function algoIDS(cfgCap) {
   for (let l = 1; l <= cap; l++) {
     all.push({ t: "I", l });
     all.push({ t: "C" });
-    const { st, found, error } = algoDLS(l, true);
+    const { st, found, error } = algoDLS(l, false);
 
     // Remove trailing N or Err before appending steps
     if (st.length > 0) {
@@ -346,14 +352,11 @@ function algoGBFS(ht, mul) {
       if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
         vis[nx][ny] = true;
         par[nx][ny] = [x, y];
-        pq.push({
-          x: nx,
-          y: ny,
-          d: c.d + 1,
-          g: c.g + w[M[nx][ny]],
-          f: heuristic(nx, ny, ht, mul),
-        });
-        st.push({ t: "Fr", x: nx, y: ny });
+        const ng = c.g + w[M[nx][ny]];
+        const nd = c.d + 1;
+        const nh = heuristic(nx, ny, ht, mul);
+        pq.push({ x: nx, y: ny, d: nd, g: ng, f: nh });
+        st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nh, d: nd });
       }
     }
   }
@@ -386,14 +389,11 @@ function algoAstar(ht, mul) {
         if (ng < dis[nx][ny]) {
           dis[nx][ny] = ng;
           par[nx][ny] = [x, y];
-          pq.push({
-            x: nx,
-            y: ny,
-            d: c.d + 1,
-            g: ng,
-            f: ng + heuristic(nx, ny, ht, mul),
-          });
-          st.push({ t: "Fr", x: nx, y: ny });
+          const nd = c.d + 1;
+          const nh = heuristic(nx, ny, ht, mul);
+          const nf = ng + nh;
+          pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf });
+          st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nf, d: nd });
         }
       }
     }
@@ -520,7 +520,7 @@ function renderGrid() {
       d.id = `c_${i}_${j}`;
       d.dataset.x = i;
       d.dataset.y = j;
-      d.innerHTML = `<div class="cell-ov"></div><div class="cell-mk"></div>`;
+      d.innerHTML = `<div class="cell-ov"></div><div class="cell-mk"></div><div class="cell-info"></div>`;
       d.addEventListener("mousedown", (e) => {
         isDown = true;
         paintCell(i, j);
@@ -701,6 +701,8 @@ function clearVis() {
     c.classList.remove("vis", "front", "onpath", "popping", "pathpop");
     const ov = c.querySelector(".cell-ov");
     if (ov) ov.style.animation = "";
+    const info = c.querySelector(".cell-info");
+    if (info) { info.textContent = ""; info.style.display = "none"; }
   });
   document.getElementById("log").innerHTML = "";
   resetStats();
@@ -714,6 +716,8 @@ function clearVisOnly() {
     c.classList.remove("vis", "front", "onpath", "popping", "pathpop");
     const ov = c.querySelector(".cell-ov");
     if (ov) ov.style.animation = "";
+    const info = c.querySelector(".cell-info");
+    if (info) { info.textContent = ""; info.style.display = "none"; }
   });
   expandedCount = 0;
   document.getElementById("s-exp").textContent = "—";
@@ -737,6 +741,38 @@ function resetStats() {
 // ═══════════════════════════════════════
 //  STEP PROCESSOR (single mode)
 // ═══════════════════════════════════════
+// Returns whether the cell-info labels should be shown
+function showLabels() {
+  const el = document.getElementById("chk-labels");
+  return el ? el.checked : false;
+}
+
+function setCellInfo(c, step) {
+  const info = c.querySelector(".cell-info");
+  if (!info) return;
+  if (!showLabels()) { info.style.display = "none"; return; }
+
+  const algo = document.getElementById("algo").value;
+  const parts = [];
+
+  // Determine which values to show based on the current algorithm
+  if (algo === "BFS" || algo === "DFS" || algo === "DLS" || algo === "IDS") {
+    if (step.d !== undefined) parts.push(`<span class="ci-d">d:${step.d}</span>`);
+  } else if (algo === "UCS") {
+    if (step.g !== undefined) parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
+  } else if (algo === "GBFS") {
+    if (step.h !== undefined) parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
+  } else if (algo === "Astar") {
+    if (step.f !== undefined) parts.push(`<span class="ci-f">f:${+step.f.toFixed(1)}</span>`);
+    if (step.g !== undefined) parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
+    if (step.h !== undefined) parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
+  }
+
+  if (parts.length === 0) { info.style.display = "none"; return; }
+  info.innerHTML = parts.join("");
+  info.style.display = "flex";
+}
+
 function processStep(step) {
   if (step.t === "E") {
     expandedCount++;
@@ -745,6 +781,9 @@ function processStep(step) {
       c.classList.remove("front");
       c.classList.add("vis", "popping");
       setTimeout(() => c.classList.remove("popping"), 380);
+      // Clear cell-info when a node gets expanded (it's no longer frontier)
+      const info = c.querySelector(".cell-info");
+      if (info) { info.textContent = ""; info.style.display = "none"; }
     }
     document.getElementById("s-exp").textContent = expandedCount;
     addLog(
@@ -753,7 +792,10 @@ function processStep(step) {
     );
   } else if (step.t === "Fr") {
     const c = cell(step.x, step.y);
-    if (c && !c.classList.contains("vis")) c.classList.add("front");
+    if (c && !c.classList.contains("vis")) {
+      c.classList.add("front");
+      setCellInfo(c, step);
+    }
   } else if (step.t === "F") {
     step.path.forEach(([x, y], idx) => {
       setTimeout(() => {
