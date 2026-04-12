@@ -4,8 +4,8 @@
 const dx = [-1, 0, 1, 0];
 const dy = [0, 1, 0, -1];
 
-const TCOLORS = ["", "#166534", "#854d0e", "#9a3412", "#7f1d1d"];
-const TNAMES = ["", "T1 · Grass", "T2 · Sand", "T3 · Rock", "T4 · Swamp"];
+const TCOLORS = ["", "#22863a", "#b5860d", "#6d3aaa", "#c0292b"];
+const TNAMES = ["", "T1 · Cỏ", "T2 · Cát", "T3 · Đá", "T4 · Đầm lầy"];
 
 const ALGO_DESC = {
   BFS: "Duyệt theo từng lớp (FIFO). Đảm bảo đường ngắn nhất theo số bước trên đồ thị không có trọng số.",
