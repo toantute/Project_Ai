@@ -27,13 +27,13 @@
   --t1: #10b981; /* Cỏ */
   --t2: #f59e0b; /* Cát */
   --t3: #8b5cf6; /* Đá */
-  --t4: #f43f5e; /* Đầm lầy */
+  --t4: #ea3957; /* Đầm lầy */
 
-  --vis-bg: #8b5cf6; /* Solid Vibrant Purple */
+  --vis-bg: #74bbee; /* Solid Vibrant Purple */
   --vis-border: #6d28d9;
   --front-bg: #ec4899; /* Solid Vibrant Pink */
   --front-border: #be185d;
-  --path-bg: #f59e0b; /* Solid Amber Path */
+  /*--path-bg: #f59e0b; /* Solid Amber Path */
   --path-border: #b45309;
 
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
