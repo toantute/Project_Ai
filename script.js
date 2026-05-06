@@ -14,8 +14,7 @@ const ALGO_DESC = {
   DLS: "DFS với giới hạn độ sâu cứng. Hữu ích khi biết trước độ sâu lời giải.",
   IDS: "Lặp DLS với giới hạn tăng dần. Tối ưu + tiết kiệm bộ nhớ như BFS.",
   GBFS: "Tham lam: chỉ dùng heuristic h, bỏ qua g. Nhanh nhưng không đảm bảo tối ưu.",
-  Astar:
-    "Kết hợp g + h (f = g + h). Tối ưu và hiệu quả khi h là admissible heuristic.",
+  Astar: "Kết hợp g + h (f = g + h). Tối ưu và hiệu quả khi h là admissible heuristic.",
 };
 
 // Colors per algorithm for compare badges
@@ -121,12 +120,28 @@ function wmin() {
   return Math.min(...w.slice(1, tcnt + 1));
 }
 
+// ─── Tie-breaking heuristic ────────────────────────────────────────────────
+// f_tb = g + h*(1+p), với p = wmin/(D*1000), đủ nhỏ để không vi phạm
+// admissibility nhưng đủ để phá tie, ưu tiên node gần đích hơn.
+function heuristicTieBreak(x, y, base, mul) {
+  const ddx = Math.abs(x - tx), ddy = Math.abs(y - ty);
+  const wm = wmin();
+  const D = Math.abs(sx - tx) + Math.abs(sy - ty) || 1;
+  const p = wm / (D * 1000);
+  const h = base === 1
+    ? Math.sqrt(ddx * ddx + ddy * ddy) * wm
+    : (ddx + ddy) * wm;
+  return h * (1 + p) * (mul || 1);
+}
+
 function heuristic(x, y, ht, mul) {
   if (ht === undefined) ht = parseInt(document.getElementById("htype").value);
   if (mul === undefined)
     mul = parseFloat(document.getElementById("hmul").value) || 1;
   const ddx = Math.abs(x - tx),
     ddy = Math.abs(y - ty);
+  // ht=2: Tie-breaking – dùng heuristicTieBreak với base Manhattan
+  if (ht === 2) return heuristicTieBreak(x, y, 0, mul);
   if (ht === 1) return Math.sqrt(ddx * ddx + ddy * ddy) * wmin() * mul;
   return (ddx + ddy) * wmin() * mul;
 }
@@ -401,6 +416,8 @@ function algoAstar(ht, mul) {
   st.push({ t: "N" });
   return st;
 }
+
+
 
 // Dispatch by name (used by both single-run and compare)
 function genStepsFor(algo, cfg) {
@@ -702,7 +719,10 @@ function clearVis() {
     const ov = c.querySelector(".cell-ov");
     if (ov) ov.style.animation = "";
     const info = c.querySelector(".cell-info");
-    if (info) { info.textContent = ""; info.style.display = "none"; }
+    if (info) {
+      info.textContent = "";
+      info.style.display = "none";
+    }
   });
   document.getElementById("log").innerHTML = "";
   resetStats();
@@ -717,7 +737,10 @@ function clearVisOnly() {
     const ov = c.querySelector(".cell-ov");
     if (ov) ov.style.animation = "";
     const info = c.querySelector(".cell-info");
-    if (info) { info.textContent = ""; info.style.display = "none"; }
+    if (info) {
+      info.textContent = "";
+      info.style.display = "none";
+    }
   });
   expandedCount = 0;
   document.getElementById("s-exp").textContent = "—";
@@ -750,25 +773,37 @@ function showLabels() {
 function setCellInfo(c, step) {
   const info = c.querySelector(".cell-info");
   if (!info) return;
-  if (!showLabels()) { info.style.display = "none"; return; }
+  if (!showLabels()) {
+    info.style.display = "none";
+    return;
+  }
 
   const algo = document.getElementById("algo").value;
   const parts = [];
 
   // Determine which values to show based on the current algorithm
   if (algo === "BFS" || algo === "DFS" || algo === "DLS" || algo === "IDS") {
-    if (step.d !== undefined) parts.push(`<span class="ci-d">d:${step.d}</span>`);
+    if (step.d !== undefined)
+      parts.push(`<span class="ci-d">d:${step.d}</span>`);
   } else if (algo === "UCS") {
-    if (step.g !== undefined) parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
+    if (step.g !== undefined)
+      parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
   } else if (algo === "GBFS") {
-    if (step.h !== undefined) parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
-  } else if (algo === "Astar") {
-    if (step.f !== undefined) parts.push(`<span class="ci-f">f:${+step.f.toFixed(1)}</span>`);
-    if (step.g !== undefined) parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
-    if (step.h !== undefined) parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
+    if (step.h !== undefined)
+      parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
+  } else if (algo === "Astar" || algo === "AstarTB") {
+    if (step.f !== undefined)
+      parts.push(`<span class="ci-f">f:${+step.f.toFixed(1)}</span>`);
+    if (step.g !== undefined)
+      parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
+    if (step.h !== undefined)
+      parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
   }
 
-  if (parts.length === 0) { info.style.display = "none"; return; }
+  if (parts.length === 0) {
+    info.style.display = "none";
+    return;
+  }
   info.innerHTML = parts.join("");
   info.style.display = "flex";
 }
@@ -783,12 +818,16 @@ function processStep(step) {
       setTimeout(() => c.classList.remove("popping"), 380);
       // Clear cell-info when a node gets expanded (it's no longer frontier)
       const info = c.querySelector(".cell-info");
-      if (info) { info.textContent = ""; info.style.display = "none"; }
+      if (info) {
+        info.textContent = "";
+        info.style.display = "none";
+      }
     }
     document.getElementById("s-exp").textContent = expandedCount;
+    const tbTag = step.tb ? ' <span style="color:#f97316;font-size:0.8em;font-weight:700">[TB]</span>' : "";
     addLog(
       "expand",
-      `<span style="color:var(--accent)">📍 Đang xét ô <b>(${step.x}, ${step.y})</b></span> <br> <span style="opacity:0.75; font-size: 0.9em;">↳ Chi phí từ điểm bắt đầu: <b>${step.g}</b> &nbsp;|&nbsp; Đi qua: <b>${step.d} bước</b></span>`,
+      `<span style="color:var(--accent)">📍 Đang xét ô <b>(${step.x}, ${step.y})</b>${tbTag}</span> <br> <span style="opacity:0.75; font-size: 0.9em;">↳ Chi phí từ điểm bắt đầu: <b>${step.g}</b> &nbsp;|&nbsp; Đi qua: <b>${step.d} bước</b></span>`,
     );
   } else if (step.t === "Fr") {
     const c = cell(step.x, step.y);
@@ -1348,6 +1387,13 @@ function onAlgoChange() {
   document
     .querySelectorAll(".pill")
     .forEach((p) => p.classList.toggle("active", p.dataset.a === a));
+}
+
+// Helper để pill header đồng bộ với dropdown và gọi onAlgoChange
+function selectAlgo(name) {
+  const sel = document.getElementById("algo");
+  if (sel) { sel.value = name; }
+  onAlgoChange();
 }
 
 // ═══════════════════════════════════════
