@@ -18,13 +18,13 @@
       </div>
 
       <div class="header-pills" id="algo-pills">
-        <span class="pill" data-a="BFS">BFS</span>
-        <span class="pill" data-a="DFS">DFS</span>
-        <span class="pill" data-a="UCS">UCS</span>
-        <span class="pill" data-a="DLS">DLS</span>
-        <span class="pill" data-a="IDS">IDS</span>
-        <span class="pill" data-a="GBFS">GBFS</span>
-        <span class="pill active" data-a="Astar">A★</span>
+        <span class="pill" data-a="BFS" onclick="selectAlgo('BFS')">BFS</span>
+        <span class="pill" data-a="DFS" onclick="selectAlgo('DFS')">DFS</span>
+        <span class="pill" data-a="UCS" onclick="selectAlgo('UCS')">UCS</span>
+        <span class="pill" data-a="DLS" onclick="selectAlgo('DLS')">DLS</span>
+        <span class="pill" data-a="IDS" onclick="selectAlgo('IDS')">IDS</span>
+        <span class="pill" data-a="GBFS" onclick="selectAlgo('GBFS')">GBFS</span>
+        <span class="pill active" data-a="Astar" onclick="selectAlgo('Astar')">A★</span>
       </div>
 
       <button
@@ -178,7 +178,7 @@
           <div id="algo-desc" class="algo-desc"></div>
           <div id="dls-p" class="extra-params" style="display: none">
             <span class="tc-label">Độ sâu cần duyệt:</span>
-            <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px">
               <input
                 type="number"
                 id="dls-lim"
@@ -188,8 +188,24 @@
                 class="tf"
                 style="width: 70px"
               />
-              <label style="display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); cursor: pointer;">
-                <input type="checkbox" id="dls-auto" onchange="document.getElementById('dls-lim').disabled = this.checked;" /> Tới đích
+              <label
+                style="
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                  font-size: 0.8rem;
+                  color: var(--muted);
+                  cursor: pointer;
+                "
+              >
+                <input
+                  type="checkbox"
+                  id="dls-auto"
+                  onchange="
+                    document.getElementById('dls-lim').disabled = this.checked
+                  "
+                />
+                Tới đích
               </label>
             </div>
           </div>
@@ -198,6 +214,7 @@
             <select id="htype">
               <option value="0">Manhattan Distance</option>
               <option value="1">Euclidean Distance</option>
+              <option value="2">Tie-breaking (Manhattan × (1+p))</option>
             </select>
             <label>Hệ số nhân</label>
             <input
@@ -299,7 +316,9 @@
               ⏸ Tạm dừng
             </button>
             <button class="btn btn-sec" onclick="doReset()">↩ Đặt lại</button>
-            <button class="btn btn-sec" onclick="clearVis()">✦ Xoá đường đi</button>
+            <button class="btn btn-sec" onclick="clearVis()">
+              ✦ Xoá đường đi
+            </button>
             <button class="btn btn-sec" onclick="clearAll()">
               ✕ Xoá tất cả
             </button>
@@ -356,16 +375,55 @@
               </div>
 
               <!-- f/g/h/d label toggle -->
-              <label class="lbl-toggle" title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)">
+              <label
+                class="lbl-toggle"
+                title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)"
+              >
                 <input type="checkbox" id="chk-labels" />
                 Hiện
-                <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="color:#fbbf24;font-size:0.65rem;border-bottom:1px dotted;cursor:help">f</span>
-                <span style="color:var(--muted);font-size:0.6rem">/</span>
-                <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="color:#34d399;font-size:0.65rem;border-bottom:1px dotted;cursor:help">g</span>
-                <span style="color:var(--muted);font-size:0.6rem">/</span>
-                <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="color:#60a5fa;font-size:0.65rem;border-bottom:1px dotted;cursor:help">h</span>
-                <span style="color:var(--muted);font-size:0.6rem">/</span>
-                <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="color:#f472b6;font-size:0.65rem;border-bottom:1px dotted;cursor:help">d</span>
+                <span
+                  title="f: Tổng chi phí dự kiến tới đích (f = g + h)"
+                  style="
+                    color: #fbbf24;
+                    font-size: 0.65rem;
+                    border-bottom: 1px dotted;
+                    cursor: help;
+                  "
+                  >f</span
+                >
+                <span style="color: var(--muted); font-size: 0.6rem">/</span>
+                <span
+                  title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)"
+                  style="
+                    color: #34d399;
+                    font-size: 0.65rem;
+                    border-bottom: 1px dotted;
+                    cursor: help;
+                  "
+                  >g</span
+                >
+                <span style="color: var(--muted); font-size: 0.6rem">/</span>
+                <span
+                  title="h: Heuristic - Khoảng cách ước tính tới đích"
+                  style="
+                    color: #60a5fa;
+                    font-size: 0.65rem;
+                    border-bottom: 1px dotted;
+                    cursor: help;
+                  "
+                  >h</span
+                >
+                <span style="color: var(--muted); font-size: 0.6rem">/</span>
+                <span
+                  title="d: Số bước đi từ điểm bắt đầu (độ sâu)"
+                  style="
+                    color: #f472b6;
+                    font-size: 0.65rem;
+                    border-bottom: 1px dotted;
+                    cursor: help;
+                  "
+                  >d</span
+                >
               </label>
             </div>
           </div>
@@ -407,9 +465,9 @@
                 <div
                   class="leg-dot"
                   style="
-                    background: rgba(79, 110, 247, 0.55);
+                    background: rgba(79, 70, 229, 0.4);
                     border-radius: 3px;
-                    outline: 1px solid rgba(79, 110, 247, 0.7);
+                    outline: 1px solid rgba(79, 70, 229, 0.6);
                   "
                 ></div>
                 Đã duyệt
@@ -418,7 +476,7 @@
                 <div
                   class="leg-dot"
                   style="
-                    background: rgba(124, 58, 237, 0.45);
+                    background: rgba(236, 72, 153, 0.3);
                     border-radius: 3px;
                   "
                 ></div>
@@ -427,7 +485,7 @@
               <div class="leg-item">
                 <div
                   class="leg-dot"
-                  style="background: rgba(234, 179, 8, 0.8); border-radius: 3px"
+                  style="background: #fbbf24; border-radius: 3px; outline: 1px solid #f59e0b"
                 ></div>
                 Đường đi
               </div>
