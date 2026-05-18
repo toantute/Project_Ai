@@ -304,6 +304,9 @@
             <button class="btn btn-primary" id="btn-run" onclick="startRun()">
               ▶ Chạy
             </button>
+            <button class="btn btn-sec" id="btn-step-back" onclick="stepBack()">
+              ⏮ Lùi lại
+            </button>
             <button class="btn btn-sec" id="btn-step" onclick="stepRun()">
               ⏭ Từng bước
             </button>
@@ -441,23 +444,31 @@
         >
           <!-- Compare playbar -->
           <div class="playbar cmp-playbar">
-            <button
-              class="btn btn-primary"
-              id="btn-cmp-run"
-              onclick="runComparison()"
-            >
+            <button class="btn btn-primary" id="btn-cmp-run" onclick="runComparison()">
               ▶ Chạy so sánh
+            </button>
+            <button class="btn btn-sec" id="btn-cmp-step-back" onclick="stepBackCompare()">
+              ⏮ Lùi lại
+            </button>
+            <button class="btn btn-sec" id="btn-cmp-step" onclick="stepCompare()">
+              ⏭ Từng bước
             </button>
             <button
               class="btn btn-sec"
-              id="btn-cmp-stop"
-              onclick="stopCompare()"
+              id="btn-cmp-pause"
+              onclick="pauseCompare()"
               disabled
             >
-              ⏹ Dừng
+              ⏸ Tạm dừng
             </button>
             <button class="btn btn-sec" onclick="resetComparison()">
-              ↩ Reset
+              ↩ Đặt lại
+            </button>
+            <button class="btn btn-sec" onclick="clearVisCompareAllAction()">
+              ✦ Xoá đường đi
+            </button>
+            <button class="btn btn-sec" onclick="clearAll()">
+              ✕ Xoá tất cả
             </button>
             <div class="playbar-spacer"></div>
             <div class="cmp-legend">
@@ -465,9 +476,9 @@
                 <div
                   class="leg-dot"
                   style="
-                    background: rgba(79, 70, 229, 0.4);
+                    background: var(--vis-bg);
+                    border: 1.5px solid var(--vis-border);
                     border-radius: 3px;
-                    outline: 1px solid rgba(79, 70, 229, 0.6);
                   "
                 ></div>
                 Đã duyệt
@@ -476,7 +487,8 @@
                 <div
                   class="leg-dot"
                   style="
-                    background: rgba(236, 72, 153, 0.3);
+                    background: var(--front-bg);
+                    border: 1.5px solid var(--front-border);
                     border-radius: 3px;
                   "
                 ></div>
@@ -485,7 +497,7 @@
               <div class="leg-item">
                 <div
                   class="leg-dot"
-                  style="background: #fbbf24; border-radius: 3px; outline: 1px solid #f59e0b"
+                  style="background: var(--path-bg); border-radius: 3px; outline: 1px solid var(--path-border)"
                 ></div>
                 Đường đi
               </div>

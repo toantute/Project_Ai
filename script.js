@@ -314,12 +314,7 @@ function algoDLS(lim, ignoreFr = false) {
 
 function algoIDS(cfgCap) {
   const all = [];
-  const autoEl = document.getElementById("dls-auto");
-  const autoChecked = autoEl ? autoEl.checked : false;
-  const baseCap = autoChecked
-    ? 9999
-    : parseInt(document.getElementById("dls-lim").value) || 15;
-  const cap = cfgCap !== undefined ? cfgCap : baseCap;
+  const cap = cfgCap !== undefined ? cfgCap : 9999;
 
   for (let l = 1; l <= cap; l++) {
     all.push({ t: "I", l });
@@ -770,14 +765,7 @@ function showLabels() {
   return el ? el.checked : false;
 }
 
-function setCellInfo(c, step) {
-  const info = c.querySelector(".cell-info");
-  if (!info) return;
-  if (!showLabels()) {
-    info.style.display = "none";
-    return;
-  }
-
+function generateCellInfoHTML(step) {
   const algo = document.getElementById("algo").value;
   const parts = [];
 
@@ -800,11 +788,23 @@ function setCellInfo(c, step) {
       parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
   }
 
-  if (parts.length === 0) {
+  if (parts.length === 0) return null;
+  return parts.join("");
+}
+
+function setCellInfo(c, step) {
+  const info = c.querySelector(".cell-info");
+  if (!info) return;
+  if (!showLabels()) {
     info.style.display = "none";
     return;
   }
-  info.innerHTML = parts.join("");
+  const html = generateCellInfoHTML(step);
+  if (!html) {
+    info.style.display = "none";
+    return;
+  }
+  info.innerHTML = html;
   info.style.display = "flex";
 }
 
@@ -886,6 +886,97 @@ function updateProgressBar() {
   document.getElementById("pbar").style.width = p + "%";
   document.getElementById("pbar-lbl").textContent =
     `Bước ${stepIdx} / ${steps.length}`;
+}
+
+function fastForwardTo(targetIdx) {
+  let expCount = 0;
+  let sCost = "—";
+  let sLen = "—";
+  let sDepth = "0";
+  let logHtml = "";
+  
+  const cellState = Array.from({length: m}, () => Array.from({length: n}, () => ({ cls: null, info: null })));
+  
+  for (let i = 0; i < targetIdx; i++) {
+    const step = steps[i];
+    if (step.t === "E") {
+      expCount++;
+      cellState[step.x][step.y].cls = "vis";
+      cellState[step.x][step.y].info = null;
+      const tbTag = step.tb ? ' <span style="color:#f97316;font-size:0.8em;font-weight:700">[TB]</span>' : "";
+      logHtml += `<div class="le expand"><span style="color:var(--accent)">📍 Đang xét ô <b>(${step.x}, ${step.y})</b>${tbTag}</span> <br> <span style="opacity:0.75; font-size: 0.9em;">↳ Chi phí từ điểm bắt đầu: <b>${step.g}</b> &nbsp;|&nbsp; Đi qua: <b>${step.d} bước</b></span></div>`;
+    } else if (step.t === "Fr") {
+      if (cellState[step.x][step.y].cls !== "vis") {
+         cellState[step.x][step.y].cls = "front";
+         cellState[step.x][step.y].info = generateCellInfoHTML(step);
+      }
+    } else if (step.t === "F") {
+      step.path.forEach(([x, y]) => {
+         cellState[x][y].cls = "onpath";
+      });
+      sCost = step.g;
+      sLen = step.path.length - 1;
+      logHtml += `<div class="le found">🎉 <b>Thành công! Đã tìm ra đường đi tới đích.</b><br><span style="opacity:0.9; font-size: 0.9em; font-weight: 500;">Tổng điểm chi phí: <b>${step.g}</b><br>Tổng số bước di chuyển: <b>${step.path.length - 1} bước</b></span></div>`;
+    } else if (step.t === "N") {
+      logHtml += `<div class="le nofound">❌ <b>Rất tiếc!</b> Không thể tìm thấy đường nào đi tới đích.</div>`;
+    } else if (step.t === "Err") {
+      logHtml += `<div class="le nofound">⚠️ <b>Cảnh báo!</b> Bản đồ quá rộng, thuật toán quá tải (out of memory). Đã tự ngắt để tránh treo Tab browser.</div>`;
+    } else if (step.t === "I") {
+      sDepth = step.l;
+      logHtml += `<div class="le info">🔄 <b>Đang quét (IDS): Độ sâu cần duyệt = <b>${step.l}</b></b></div>`;
+    } else if (step.t === "C") {
+      for(let r=0; r<m; r++) {
+         for(let c=0; c<n; c++) {
+            cellState[r][c].cls = null;
+            cellState[r][c].info = null;
+         }
+      }
+      expCount = 0;
+      sCost = "—";
+      sLen = "—";
+    }
+  }
+
+  clearVisOnly();
+  
+  for(let r=0; r<m; r++) {
+    for(let c=0; c<n; c++) {
+      const st = cellState[r][c];
+      if (st.cls || st.info) {
+        const domC = cell(r, c);
+        if (domC) {
+          if (st.cls) domC.classList.add(st.cls);
+          if (st.info && showLabels()) {
+            const infoEl = domC.querySelector(".cell-info");
+            if (infoEl) {
+              infoEl.innerHTML = st.info;
+              infoEl.style.display = "flex";
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  expandedCount = expCount;
+  document.getElementById("s-exp").textContent = expandedCount === 0 ? "—" : expandedCount;
+  document.getElementById("s-cost").textContent = sCost;
+  document.getElementById("s-len").textContent = sLen;
+  document.getElementById("s-depth").textContent = sDepth;
+  
+  const logEl = document.getElementById("log");
+  logEl.innerHTML = logHtml;
+  logEl.scrollTop = logEl.scrollHeight;
+  
+  stepIdx = targetIdx;
+  updateProgressBar();
+}
+
+function stepBack() {
+  if (!steps || steps.length === 0) return;
+  if (stepIdx <= 0) return;
+  if (running) pauseRun();
+  fastForwardTo(stepIdx - 1);
 }
 
 // ═══════════════════════════════════════
@@ -1051,14 +1142,14 @@ function renderMiniGrid(algo) {
   el.style.aspectRatio = `${n} / ${m}`;
   el.innerHTML = "";
 
-  const tColors = ["", "#166534", "#854d0e", "#9a3412", "#7f1d1d"];
+  const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
 
   for (let i = 0; i < m; i++) {
     for (let j = 0; j < n; j++) {
       const d = document.createElement("div");
       const t = M[i][j];
       d.style.cssText = `position:relative;border-radius:1px;width:100%;height:100%;`;
-      d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "#166534";
+      d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
       d.dataset.terrain = t;
       d.id = `${algo}_c_${i}_${j}`;
 
@@ -1077,31 +1168,40 @@ function cmpCell(algo, x, y) {
 }
 
 // ── Run comparison ──
-function runComparison() {
-  if (cmpSelected.size === 0) return;
-  stopCompare();
-  buildCompareView(); // reset all grids
+let cmpGlobalStep = 0;
 
-  cmpState = {};
+function initCompareState() {
+  if (cmpSelected.size === 0) return false;
+  
+  if (cmpTimer) {
+    clearTimeout(cmpTimer);
+    cmpTimer = null;
+  }
+  cmpRunning = false;
+
+  const cfgMap = {};
   [...cmpSelected].forEach((algo) => {
     let cfg = {};
     if (algo === "DLS" || algo === "IDS") {
       const dlsEl = document.getElementById(`cmp-dls-${algo}`);
       const autoEl = document.getElementById(`cmp-auto-${algo}`);
-      if (autoEl && autoEl.checked) {
-        cfg.dls = 9999;
-      } else if (dlsEl) {
-        cfg.dls = parseInt(dlsEl.value) || 15;
-      }
+      if (autoEl && autoEl.checked) cfg.dls = 9999;
+      else if (dlsEl) cfg.dls = parseInt(dlsEl.value) || 15;
     } else if (algo === "GBFS" || algo === "Astar") {
       const htEl = document.getElementById(`cmp-ht-${algo}`);
       const hmulEl = document.getElementById(`cmp-hmul-${algo}`);
       if (htEl) cfg.ht = parseInt(htEl.value) || 0;
       if (hmulEl) cfg.mul = parseFloat(hmulEl.value) || 1;
     }
+    cfgMap[algo] = cfg;
+  });
 
+  buildCompareView();
+
+  cmpState = {};
+  [...cmpSelected].forEach((algo) => {
     cmpState[algo] = {
-      steps: genStepsFor(algo, cfg),
+      steps: genStepsFor(algo, cfgMap[algo]),
       stepIdx: 0,
       expandedCount: 0,
       done: false,
@@ -1109,6 +1209,27 @@ function runComparison() {
     };
     const el = document.getElementById(`cmp-status-${algo}`);
     if (el) {
+      el.textContent = "Ready";
+      el.className = "cmp-card-status";
+    }
+  });
+
+  document.getElementById("cmp-results-table").innerHTML = "";
+  cmpGlobalStep = 0;
+  return true;
+}
+
+function runComparison() {
+  if (!cmpState || Object.keys(cmpState).length === 0 || cmpGlobalStep === 0) {
+    if (!initCompareState()) return;
+  } else if (cmpGlobalStep > 0 && !cmpRunning) {
+    // If we've already started, and we click Run again, re-init to run from scratch
+    if (!initCompareState()) return;
+  }
+  
+  [...cmpSelected].forEach((algo) => {
+    const el = document.getElementById(`cmp-status-${algo}`);
+    if (el && !cmpState[algo].done) {
       el.textContent = "Running…";
       el.className = "cmp-card-status running";
     }
@@ -1116,8 +1237,95 @@ function runComparison() {
 
   cmpRunning = true;
   document.getElementById("btn-cmp-run").disabled = true;
-  document.getElementById("btn-cmp-stop").disabled = false;
+  document.getElementById("btn-cmp-step").disabled = true;
+  document.getElementById("btn-cmp-step-back").disabled = true;
+  document.getElementById("btn-cmp-pause").disabled = false;
   cmpAnimateLoop();
+}
+
+function pauseCompare() {
+  if (cmpTimer) {
+    clearTimeout(cmpTimer);
+    cmpTimer = null;
+  }
+  cmpRunning = false;
+  const btn = document.getElementById("btn-cmp-run");
+  btn.textContent = "▶ Tiếp tục";
+  btn.onclick = resumeCompare;
+  btn.disabled = false;
+  
+  document.getElementById("btn-cmp-step").disabled = false;
+  document.getElementById("btn-cmp-step-back").disabled = false;
+  document.getElementById("btn-cmp-pause").disabled = true;
+}
+
+function resumeCompare() {
+  cmpRunning = true;
+  const btn = document.getElementById("btn-cmp-run");
+  btn.textContent = "▶ Chạy so sánh";
+  btn.onclick = runComparison;
+  btn.disabled = true;
+  
+  document.getElementById("btn-cmp-step").disabled = true;
+  document.getElementById("btn-cmp-step-back").disabled = true;
+  document.getElementById("btn-cmp-pause").disabled = false;
+
+  [...cmpSelected].forEach((algo) => {
+    const el = document.getElementById(`cmp-status-${algo}`);
+    if (el && !cmpState[algo].done) {
+      el.textContent = "Running…";
+      el.className = "cmp-card-status running";
+    }
+  });
+
+  cmpAnimateLoop();
+}
+
+function clearVisCompareAllAction() {
+  if (cmpTimer) {
+    clearTimeout(cmpTimer);
+    cmpTimer = null;
+  }
+  cmpRunning = false;
+  
+  [...cmpSelected].forEach((algo) => {
+     clearCompareVis(algo);
+     const expEl = document.getElementById(`cmp-exp-${algo}`);
+     const costEl = document.getElementById(`cmp-cost-${algo}`);
+     const lenEl = document.getElementById(`cmp-len-${algo}`);
+     const statusEl = document.getElementById(`cmp-status-${algo}`);
+     if(expEl) expEl.textContent = "—";
+     if(costEl) costEl.textContent = "—";
+     if(lenEl) lenEl.textContent = "—";
+     if(statusEl) {
+        statusEl.textContent = "Ready";
+        statusEl.className = "cmp-card-status";
+     }
+     
+     if (cmpState && cmpState[algo]) {
+        cmpState[algo].stepIdx = 0;
+        cmpState[algo].expandedCount = 0;
+        cmpState[algo].done = false;
+        cmpState[algo].result = null;
+     }
+     
+     const pb = document.getElementById(`cmp-pbar-${algo}`);
+     const pl = document.getElementById(`cmp-plbl-${algo}`);
+     if (pb) pb.style.width = "0%";
+     if (pl && cmpState && cmpState[algo]) pl.textContent = `0 / ${cmpState[algo].steps.length}`;
+  });
+  
+  cmpGlobalStep = 0;
+  document.getElementById("cmp-results-table").innerHTML = "";
+
+  const btn = document.getElementById("btn-cmp-run");
+  btn.textContent = "▶ Chạy so sánh";
+  btn.onclick = runComparison;
+  btn.disabled = false;
+
+  document.getElementById("btn-cmp-step").disabled = false;
+  document.getElementById("btn-cmp-step-back").disabled = false;
+  document.getElementById("btn-cmp-pause").disabled = true;
 }
 
 function cmpAnimateLoop() {
@@ -1125,7 +1333,6 @@ function cmpAnimateLoop() {
     (s) => s.done || s.stepIdx >= s.steps.length,
   );
   if (allDone) {
-    // Mark any not explicitly found as done
     Object.entries(cmpState).forEach(([algo, state]) => {
       if (!state.done) {
         state.done = true;
@@ -1139,8 +1346,13 @@ function cmpAnimateLoop() {
       }
     });
     cmpRunning = false;
-    document.getElementById("btn-cmp-run").disabled = false;
-    document.getElementById("btn-cmp-stop").disabled = true;
+    const btn = document.getElementById("btn-cmp-run");
+    btn.textContent = "▶ Chạy so sánh";
+    btn.onclick = runComparison;
+    btn.disabled = false;
+    document.getElementById("btn-cmp-step").disabled = false;
+    document.getElementById("btn-cmp-step-back").disabled = false;
+    document.getElementById("btn-cmp-pause").disabled = true;
     showCmpResults();
     return;
   }
@@ -1154,7 +1366,6 @@ function cmpAnimateLoop() {
     const step = state.steps[state.stepIdx++];
     processCompareStep(algo, state, step);
 
-    // Update progress bar
     const total = state.steps.length;
     const pct = total ? (state.stepIdx / total) * 100 : 0;
     const pb = document.getElementById(`cmp-pbar-${algo}`);
@@ -1163,7 +1374,199 @@ function cmpAnimateLoop() {
     if (pl) pl.textContent = `${state.stepIdx} / ${total}`;
   });
 
+  cmpGlobalStep++;
   cmpTimer = setTimeout(cmpAnimateLoop, getDelay());
+}
+
+function stepCompare() {
+  if (!cmpState || Object.keys(cmpState).length === 0) {
+    if (!initCompareState()) return;
+  }
+  
+  const allDone = Object.values(cmpState).every(
+    (s) => s.done || s.stepIdx >= s.steps.length,
+  );
+  
+  if (allDone) return;
+
+  Object.entries(cmpState).forEach(([algo, state]) => {
+    if (state.done) return;
+    if (state.stepIdx >= state.steps.length) {
+      state.done = true;
+      return;
+    }
+    const step = state.steps[state.stepIdx++];
+    processCompareStep(algo, state, step);
+
+    const total = state.steps.length;
+    const pct = total ? (state.stepIdx / total) * 100 : 0;
+    const pb = document.getElementById(`cmp-pbar-${algo}`);
+    const pl = document.getElementById(`cmp-plbl-${algo}`);
+    if (pb) pb.style.width = pct + "%";
+    if (pl) pl.textContent = `${state.stepIdx} / ${total}`;
+  });
+  
+  cmpGlobalStep++;
+  
+  const allDoneNow = Object.values(cmpState).every(
+    (s) => s.done || s.stepIdx >= s.steps.length,
+  );
+  if (allDoneNow) {
+     Object.entries(cmpState).forEach(([algo, state]) => {
+       if (!state.done) {
+         state.done = true;
+         if (!state.result)
+           state.result = {
+             found: false,
+             cost: "—",
+             steps: "—",
+             expanded: state.expandedCount,
+           };
+       }
+     });
+     showCmpResults();
+  }
+}
+
+function fastForwardCompareTo(targetGlobalStep) {
+  [...cmpSelected].forEach((algo) => {
+     clearCompareVis(algo);
+  });
+  document.getElementById("cmp-results-table").innerHTML = "";
+
+  let allDone = true;
+
+  [...cmpSelected].forEach((algo) => {
+    const state = cmpState[algo];
+    const steps = state.steps;
+    const targetIdx = Math.min(targetGlobalStep, steps.length);
+    
+    let expCount = 0;
+    let sCost = "—";
+    let sLen = "—";
+    let isFound = false;
+    let isNoPath = false;
+    let isErr = false;
+    
+    const cellState = Array.from({length: m}, () => Array.from({length: n}, () => null));
+
+    for (let i = 0; i < targetIdx; i++) {
+      const step = steps[i];
+      if (step.t === "E") {
+        expCount++;
+        cellState[step.x][step.y] = "vis";
+      } else if (step.t === "Fr") {
+        if (cellState[step.x][step.y] !== "vis") {
+          cellState[step.x][step.y] = "front";
+        }
+      } else if (step.t === "F") {
+        step.path.forEach(([x, y]) => {
+          cellState[x][y] = "path";
+        });
+        sCost = step.g;
+        sLen = step.path.length - 1;
+        isFound = true;
+      } else if (step.t === "N") {
+        isNoPath = true;
+      } else if (step.t === "Err") {
+        isErr = true;
+      } else if (step.t === "C") {
+        for(let r=0; r<m; r++) {
+          for(let c=0; c<n; c++) {
+            cellState[r][c] = null;
+          }
+        }
+        expCount = 0;
+        sCost = "—";
+        sLen = "—";
+      }
+    }
+
+    for(let r=0; r<m; r++) {
+      for(let c=0; c<n; c++) {
+        const st = cellState[r][c];
+        if (st && !(r === sx && c === sy) && !(r === tx && c === ty)) {
+          const domC = cmpCell(algo, r, c);
+          if (domC) {
+            domC.dataset.state = st;
+            if (st === "vis") {
+              domC.style.background = "var(--vis-bg)";
+              domC.style.outline = "1px solid var(--vis-border)";
+            } else if (st === "front") {
+              domC.style.background = "var(--front-bg)";
+              domC.style.outline = "1px solid var(--front-border)";
+            } else if (st === "path") {
+              domC.style.background = "var(--path-bg)";
+              domC.style.outline = "1.5px solid var(--path-border)";
+            }
+          }
+        }
+      }
+    }
+
+    const expEl = document.getElementById(`cmp-exp-${algo}`);
+    if (expEl) expEl.textContent = expCount;
+    const costEl = document.getElementById(`cmp-cost-${algo}`);
+    if (costEl) costEl.textContent = sCost;
+    const lenEl = document.getElementById(`cmp-len-${algo}`);
+    if (lenEl) lenEl.textContent = sLen;
+
+    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    if (statusEl) {
+      if (isFound) {
+        statusEl.textContent = "✓ Found";
+        statusEl.className = "cmp-card-status found";
+      } else if (isNoPath) {
+        statusEl.textContent = "✗ No path";
+        statusEl.className = "cmp-card-status nofound";
+      } else if (isErr) {
+        statusEl.textContent = "⚠ Overloaded";
+        statusEl.className = "cmp-card-status nofound";
+      } else if (targetIdx >= steps.length) {
+        statusEl.textContent = "Done";
+        statusEl.className = "cmp-card-status";
+      } else {
+        statusEl.textContent = "Running…";
+        statusEl.className = "cmp-card-status running";
+      }
+    }
+
+    state.stepIdx = targetIdx;
+    state.expandedCount = expCount;
+    state.done = (targetIdx >= steps.length) || isFound || isNoPath || isErr;
+    if (state.done) {
+      state.result = {
+        found: isFound,
+        cost: sCost,
+        steps: sLen,
+        expanded: isErr ? "OOM" : expCount,
+      };
+    } else {
+      state.result = null;
+    }
+
+    if (!state.done) allDone = false;
+
+    const total = steps.length;
+    const pct = total ? (targetIdx / total) * 100 : 0;
+    const pb = document.getElementById(`cmp-pbar-${algo}`);
+    const pl = document.getElementById(`cmp-plbl-${algo}`);
+    if (pb) pb.style.width = pct + "%";
+    if (pl) pl.textContent = `${targetIdx} / ${total}`;
+  });
+
+  cmpGlobalStep = targetGlobalStep;
+
+  if (allDone && targetGlobalStep > 0) {
+    showCmpResults();
+  }
+}
+
+function stepBackCompare() {
+  if (!cmpState || Object.keys(cmpState).length === 0) return;
+  if (cmpGlobalStep <= 0) return;
+  if (cmpRunning) pauseCompare();
+  fastForwardCompareTo(cmpGlobalStep - 1);
 }
 
 function processCompareStep(algo, state, step) {
@@ -1175,8 +1578,8 @@ function processCompareStep(algo, state, step) {
       !(step.x === sx && step.y === sy) &&
       !(step.x === tx && step.y === ty)
     ) {
-      c.style.background = "rgba(79,110,247,0.6)";
-      c.style.outline = "1px solid rgba(79,110,247,0.75)";
+      c.style.background = "var(--vis-bg)";
+      c.style.outline = "1px solid var(--vis-border)";
       c.dataset.state = "vis";
     }
     const expEl = document.getElementById(`cmp-exp-${algo}`);
@@ -1189,8 +1592,8 @@ function processCompareStep(algo, state, step) {
       !(step.x === sx && step.y === sy) &&
       !(step.x === tx && step.y === ty)
     ) {
-      c.style.background = "rgba(124,58,237,0.5)";
-      c.style.outline = "1px solid rgba(124,58,237,0.65)";
+      c.style.background = "var(--front-bg)";
+      c.style.outline = "1px solid var(--front-border)";
       c.dataset.state = "front";
     }
   } else if (step.t === "F") {
@@ -1198,8 +1601,8 @@ function processCompareStep(algo, state, step) {
       setTimeout(() => {
         const c = cmpCell(algo, x, y);
         if (c && !(x === sx && y === sy) && !(x === tx && y === ty)) {
-          c.style.background = "rgba(234,179,8,0.85)";
-          c.style.outline = "1.5px solid rgba(202,138,4,0.95)";
+          c.style.background = "var(--path-bg)";
+          c.style.outline = "1.5px solid var(--path-border)";
           c.dataset.state = "path";
         }
       }, idx * 25);
@@ -1254,7 +1657,7 @@ function processCompareStep(algo, state, step) {
 }
 
 function clearCompareVis(algo) {
-  const tColors = ["", "#166534", "#854d0e", "#9a3412", "#7f1d1d"];
+  const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
   for (let i = 0; i < m; i++) {
     for (let j = 0; j < n; j++) {
       const c = cmpCell(algo, i, j);
@@ -1262,14 +1665,14 @@ function clearCompareVis(algo) {
         delete c.dataset.state;
         const t = M[i][j];
         if (i === sx && j === sy) {
-          c.style.background = tColors[t] || "#166534";
+          c.style.background = tColors[t] || "var(--t1)";
           c.style.outline = "";
         } else if (i === tx && j === ty) {
-          c.style.background = tColors[t] || "#166534";
+          c.style.background = tColors[t] || "var(--t1)";
           c.style.outline = "";
         } else {
           c.style.background =
-            t === 0 ? "var(--wall)" : tColors[t] || "#166534";
+            t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
           c.style.outline = "";
         }
       }
@@ -1283,12 +1686,20 @@ function stopCompare() {
     cmpTimer = null;
   }
   cmpRunning = false;
-  document.getElementById("btn-cmp-run").disabled = false;
-  document.getElementById("btn-cmp-stop").disabled = true;
+  const btn = document.getElementById("btn-cmp-run");
+  if (btn) {
+    btn.textContent = "▶ Chạy so sánh";
+    btn.onclick = runComparison;
+    btn.disabled = false;
+  }
+  const btnPause = document.getElementById("btn-cmp-pause");
+  if (btnPause) btnPause.disabled = true;
 }
 
 function resetComparison() {
   stopCompare();
+  cmpState = {};
+  cmpGlobalStep = 0;
   buildCompareView();
   document.getElementById("cmp-progress-list").innerHTML = "";
   buildCmpAlgoChecks();
