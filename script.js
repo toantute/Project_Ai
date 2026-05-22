@@ -47,8 +47,13 @@ let expandedCount = 0;
 
 // ─── Compare Mode State ───────────────
 let compareMode = false;
-let cmpSelected = new Set(["BFS", "DFS", "Astar"]);
-let cmpState = {}; // algo -> { steps, stepIdx, expandedCount, done, result }
+let cmpRunners = [
+  { id: "r1", algo: "BFS" },
+  { id: "r2", algo: "DFS" },
+  { id: "r3", algo: "Astar", ht: 0, mul: 1.0 }
+];
+let nextRunnerId = 4;
+let cmpState = {}; // runnerId -> { steps, stepIdx, expandedCount, done, result, algo }
 let cmpTimer = null;
 let cmpRunning = false;
 
@@ -134,10 +139,110 @@ function heuristicTieBreak(x, y, base, mul) {
   return h * (1 + p) * (mul || 1);
 }
 
+let activeLandmarks = [];
+let landmarkDistsFrom = [];
+let landmarkDistsTo = [];
+
+function findClosestNonWall(r, c) {
+  if (M[r][c] !== 0) return [r, c];
+  const q = [[r, c]];
+  const vis = A2(false);
+  vis[r][c] = true;
+  while (q.length) {
+    const [cx, cy] = q.shift();
+    if (M[cx][cy] !== 0) return [cx, cy];
+    for (let i = 0; i < 4; i++) {
+      const nx = cx + dx[i], ny = cy + dy[i];
+      if (ok(nx, ny) && !vis[nx][ny]) {
+        vis[nx][ny] = true;
+        q.push([nx, ny]);
+      }
+    }
+  }
+  return [r, c];
+}
+
+function computeDistsFrom(lx, ly) {
+  const dis = A2(Infinity);
+  const pq = new Heap((a, b) => a.d - b.d);
+  dis[lx][ly] = 0;
+  pq.push({ x: lx, y: ly, d: 0 });
+  while (!pq.empty()) {
+    const c = pq.pop();
+    if (c.d > dis[c.x][c.y]) continue;
+    for (let i = 0; i < 4; i++) {
+      const nx = c.x + dx[i], ny = c.y + dy[i];
+      if (ok(nx, ny) && M[nx][ny] !== 0) {
+        const nd = c.d + w[M[nx][ny]];
+        if (nd < dis[nx][ny]) {
+          dis[nx][ny] = nd;
+          pq.push({ x: nx, y: ny, d: nd });
+        }
+      }
+    }
+  }
+  return dis;
+}
+
+function computeDistsTo(lx, ly) {
+  const dis = A2(Infinity);
+  const pq = new Heap((a, b) => a.d - b.d);
+  dis[lx][ly] = 0;
+  pq.push({ x: lx, y: ly, d: 0 });
+  while (!pq.empty()) {
+    const c = pq.pop();
+    if (c.d > dis[c.x][c.y]) continue;
+    for (let i = 0; i < 4; i++) {
+      const nx = c.x + dx[i], ny = c.y + dy[i];
+      if (ok(nx, ny) && M[nx][ny] !== 0) {
+        const nd = c.d + w[M[c.x][c.y]];
+        if (nd < dis[nx][ny]) {
+          dis[nx][ny] = nd;
+          pq.push({ x: nx, y: ny, d: nd });
+        }
+      }
+    }
+  }
+  return dis;
+}
+
+function initLandmarks() {
+  activeLandmarks = [
+    findClosestNonWall(0, 0),
+    findClosestNonWall(0, n - 1),
+    findClosestNonWall(m - 1, 0),
+    findClosestNonWall(m - 1, n - 1)
+  ];
+  landmarkDistsFrom = activeLandmarks.map(([r, c]) => computeDistsFrom(r, c));
+  landmarkDistsTo = activeLandmarks.map(([r, c]) => computeDistsTo(r, c));
+}
+
 function heuristic(x, y, ht, mul) {
   if (ht === undefined) ht = parseInt(document.getElementById("htype").value);
   if (mul === undefined)
     mul = parseFloat(document.getElementById("hmul").value) || 1;
+
+  if (ht === 3) {
+    if (!landmarkDistsFrom.length || !landmarkDistsTo.length) {
+      const ddx = Math.abs(x - tx), ddy = Math.abs(y - ty);
+      return (ddx + ddy) * wmin() * mul;
+    }
+    let maxH = 0;
+    for (let i = 0; i < activeLandmarks.length; i++) {
+      const d_v_L = landmarkDistsTo[i][x][y];
+      const d_T_L = landmarkDistsTo[i][tx][ty];
+      if (d_v_L !== Infinity && d_T_L !== Infinity) {
+        maxH = Math.max(maxH, d_v_L - d_T_L);
+      }
+      const d_L_T = landmarkDistsFrom[i][tx][ty];
+      const d_L_v = landmarkDistsFrom[i][x][y];
+      if (d_L_T !== Infinity && d_L_v !== Infinity) {
+        maxH = Math.max(maxH, d_L_T - d_L_v);
+      }
+    }
+    return maxH * mul;
+  }
+
   const ddx = Math.abs(x - tx),
     ddy = Math.abs(y - ty);
   // ht=2: Tie-breaking – dùng heuristicTieBreak với base Manhattan
@@ -341,13 +446,19 @@ function algoIDS(cfgCap) {
 }
 
 function algoGBFS(ht, mul) {
+  let activeHt = ht;
+  if (activeHt === undefined) activeHt = parseInt(document.getElementById("htype").value);
+  let activeMul = mul;
+  if (activeMul === undefined) activeMul = parseFloat(document.getElementById("hmul").value) || 1;
+  if (activeHt === 3) initLandmarks();
+
   const st = [],
     vis = A2(false),
     par = A2(null);
   const pq = new Heap((a, b) => a.f - b.f);
   vis[sx][sy] = true;
   par[sx][sy] = [sx, sy];
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, ht, mul) });
+  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, activeHt, activeMul) });
   while (!pq.empty()) {
     const c = pq.pop();
     const { x, y } = c;
@@ -364,7 +475,7 @@ function algoGBFS(ht, mul) {
         par[nx][ny] = [x, y];
         const ng = c.g + w[M[nx][ny]];
         const nd = c.d + 1;
-        const nh = heuristic(nx, ny, ht, mul);
+        const nh = heuristic(nx, ny, activeHt, activeMul);
         pq.push({ x: nx, y: ny, d: nd, g: ng, f: nh });
         st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nh, d: nd });
       }
@@ -375,13 +486,19 @@ function algoGBFS(ht, mul) {
 }
 
 function algoAstar(ht, mul) {
+  let activeHt = ht;
+  if (activeHt === undefined) activeHt = parseInt(document.getElementById("htype").value);
+  let activeMul = mul;
+  if (activeMul === undefined) activeMul = parseFloat(document.getElementById("hmul").value) || 1;
+  if (activeHt === 3) initLandmarks();
+
   const st = [],
     dis = A2(Infinity),
     par = A2(null);
   const pq = new Heap((a, b) => a.f - b.f);
   dis[sx][sy] = 0;
   par[sx][sy] = [sx, sy];
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, ht, mul) });
+  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, activeHt, activeMul) });
   while (!pq.empty()) {
     const c = pq.pop();
     const { x, y } = c;
@@ -400,7 +517,7 @@ function algoAstar(ht, mul) {
           dis[nx][ny] = ng;
           par[nx][ny] = [x, y];
           const nd = c.d + 1;
-          const nh = heuristic(nx, ny, ht, mul);
+          const nh = heuristic(nx, ny, activeHt, activeMul);
           const nf = ng + nh;
           pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf });
           st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nf, d: nd });
@@ -499,7 +616,7 @@ function updateDrawModes() {
     { id: "wall", label: "⬛ Tường" },
     { id: "erase", label: "◻ Xoá" },
     { id: "start", label: "🟢 Xuất phát" },
-    { id: "end", label: "🔴 Đích đến" },
+    { id: "end", label: "🏆 Đích đến" },
   ];
   for (let i = 1; i <= tcnt; i++)
     modes.push({ id: `t${i}`, label: `${TNAMES[i].split(" ")[0]}` });
@@ -557,7 +674,7 @@ function refreshCell(i, j) {
   else d.classList.add(`t${t}`);
   const mk = d.querySelector(".cell-mk");
   if (i === sx && j === sy) mk.textContent = "🟢";
-  else if (i === tx && j === ty) mk.textContent = "🔴";
+  else if (i === tx && j === ty) mk.textContent = "🏆";
   else mk.textContent = "";
 }
 
@@ -765,8 +882,31 @@ function showLabels() {
   return el ? el.checked : false;
 }
 
-function generateCellInfoHTML(step) {
-  const algo = document.getElementById("algo").value;
+function showCmpLabels() {
+  const el = document.getElementById("chk-labels-cmp");
+  return el ? el.checked : false;
+}
+
+function toggleCmpLabels() {
+  const show = showCmpLabels();
+  document.querySelectorAll(".cmp-mini-grid .cell-info").forEach((info) => {
+    if (info.innerHTML) {
+      info.style.display = show ? "flex" : "none";
+    }
+  });
+}
+
+function toggleSingleLabels() {
+  const show = showLabels();
+  document.querySelectorAll("#grid .cell-info").forEach((info) => {
+    if (info.innerHTML) {
+      info.style.display = show ? "flex" : "none";
+    }
+  });
+}
+
+function generateCellInfoHTML(step, algo) {
+  if (!algo) algo = document.getElementById("algo").value;
   const parts = [];
 
   // Determine which values to show based on the current algorithm
@@ -792,20 +932,18 @@ function generateCellInfoHTML(step) {
   return parts.join("");
 }
 
-function setCellInfo(c, step) {
+function setCellInfo(c, step, algo) {
   const info = c.querySelector(".cell-info");
   if (!info) return;
-  if (!showLabels()) {
-    info.style.display = "none";
-    return;
-  }
-  const html = generateCellInfoHTML(step);
+  const html = generateCellInfoHTML(step, algo);
   if (!html) {
     info.style.display = "none";
+    info.innerHTML = "";
     return;
   }
   info.innerHTML = html;
-  info.style.display = "flex";
+  const shouldShow = algo ? showCmpLabels() : showLabels();
+  info.style.display = shouldShow ? "flex" : "none";
 }
 
 function processStep(step) {
@@ -894,9 +1032,9 @@ function fastForwardTo(targetIdx) {
   let sLen = "—";
   let sDepth = "0";
   let logHtml = "";
-  
-  const cellState = Array.from({length: m}, () => Array.from({length: n}, () => ({ cls: null, info: null })));
-  
+
+  const cellState = Array.from({ length: m }, () => Array.from({ length: n }, () => ({ cls: null, info: null })));
+
   for (let i = 0; i < targetIdx; i++) {
     const step = steps[i];
     if (step.t === "E") {
@@ -907,12 +1045,12 @@ function fastForwardTo(targetIdx) {
       logHtml += `<div class="le expand"><span style="color:var(--accent)">📍 Đang xét ô <b>(${step.x}, ${step.y})</b>${tbTag}</span> <br> <span style="opacity:0.75; font-size: 0.9em;">↳ Chi phí từ điểm bắt đầu: <b>${step.g}</b> &nbsp;|&nbsp; Đi qua: <b>${step.d} bước</b></span></div>`;
     } else if (step.t === "Fr") {
       if (cellState[step.x][step.y].cls !== "vis") {
-         cellState[step.x][step.y].cls = "front";
-         cellState[step.x][step.y].info = generateCellInfoHTML(step);
+        cellState[step.x][step.y].cls = "front";
+        cellState[step.x][step.y].info = generateCellInfoHTML(step);
       }
     } else if (step.t === "F") {
       step.path.forEach(([x, y]) => {
-         cellState[x][y].cls = "onpath";
+        cellState[x][y].cls = "onpath";
       });
       sCost = step.g;
       sLen = step.path.length - 1;
@@ -925,11 +1063,11 @@ function fastForwardTo(targetIdx) {
       sDepth = step.l;
       logHtml += `<div class="le info">🔄 <b>Đang quét (IDS): Độ sâu cần duyệt = <b>${step.l}</b></b></div>`;
     } else if (step.t === "C") {
-      for(let r=0; r<m; r++) {
-         for(let c=0; c<n; c++) {
-            cellState[r][c].cls = null;
-            cellState[r][c].info = null;
-         }
+      for (let r = 0; r < m; r++) {
+        for (let c = 0; c < n; c++) {
+          cellState[r][c].cls = null;
+          cellState[r][c].info = null;
+        }
       }
       expCount = 0;
       sCost = "—";
@@ -938,36 +1076,36 @@ function fastForwardTo(targetIdx) {
   }
 
   clearVisOnly();
-  
-  for(let r=0; r<m; r++) {
-    for(let c=0; c<n; c++) {
+
+  for (let r = 0; r < m; r++) {
+    for (let c = 0; c < n; c++) {
       const st = cellState[r][c];
       if (st.cls || st.info) {
         const domC = cell(r, c);
         if (domC) {
           if (st.cls) domC.classList.add(st.cls);
-          if (st.info && showLabels()) {
+          if (st.info) {
             const infoEl = domC.querySelector(".cell-info");
             if (infoEl) {
               infoEl.innerHTML = st.info;
-              infoEl.style.display = "flex";
+              infoEl.style.display = showLabels() ? "flex" : "none";
             }
           }
         }
       }
     }
   }
-  
+
   expandedCount = expCount;
   document.getElementById("s-exp").textContent = expandedCount === 0 ? "—" : expandedCount;
   document.getElementById("s-cost").textContent = sCost;
   document.getElementById("s-len").textContent = sLen;
   document.getElementById("s-depth").textContent = sDepth;
-  
+
   const logEl = document.getElementById("log");
   logEl.innerHTML = logHtml;
   logEl.scrollTop = logEl.scrollHeight;
-  
+
   stepIdx = targetIdx;
   updateProgressBar();
 }
@@ -1031,23 +1169,137 @@ function toggleCompareMode() {
 
 function buildCmpAlgoChecks() {
   const c = document.getElementById("cmp-algo-checks");
+  if (!c) return;
   c.innerHTML = "";
-  const algos = ["BFS", "DFS", "UCS", "DLS", "IDS", "GBFS", "Astar"];
-  algos.forEach((algo) => {
-    const label = document.createElement("label");
-    label.className = "cmp-check-label";
-    label.innerHTML = `
-      <input type="checkbox" value="${algo}" ${cmpSelected.has(algo) ? "checked" : ""}
-        onchange="toggleCmpAlgo('${algo}', this.checked)">
-      <span class="cmp-check-badge" style="background:${CMP_COLORS[algo]}">${algo}</span>`;
-    c.appendChild(label);
+
+  const listContainer = document.createElement("div");
+  listContainer.className = "cmp-runners-list";
+
+  cmpRunners.forEach((runner) => {
+    const item = document.createElement("div");
+    item.className = "cmp-runner-item";
+
+    // Dropdown options
+    const algos = ["BFS", "DFS", "UCS", "DLS", "IDS", "GBFS", "Astar"];
+    const options = algos.map(a =>
+      `<option value="${a}" ${runner.algo === a ? "selected" : ""}>${a === "Astar" ? "A★" : a}</option>`
+    ).join("");
+
+    // Deletion button (only if > 2 runners)
+    const deleteBtn = cmpRunners.length > 2
+      ? `<button class="btn-delete-runner" onclick="deleteRunner('${runner.id}')" title="Xóa cấu hình">✕</button>`
+      : "";
+
+    // Color badge style
+    const color = CMP_COLORS[runner.algo];
+
+    item.innerHTML = `
+      <span class="cmp-runner-badge" style="background:${color}" id="cmp-badge-${runner.id}"></span>
+      <select class="cmp-runner-select" onchange="changeRunnerAlgo('${runner.id}', this.value)">
+        ${options}
+      </select>
+      ${deleteBtn}
+    `;
+    listContainer.appendChild(item);
   });
+
+  c.appendChild(listContainer);
+
+  // Add runner button (only if < 7 runners)
+  if (cmpRunners.length < 7) {
+    const addBtn = document.createElement("button");
+    addBtn.className = "btn btn-sec btn-add-runner";
+    addBtn.style.width = "100%";
+    addBtn.style.marginTop = "8px";
+    addBtn.innerHTML = "＋ Thêm cấu hình";
+    addBtn.onclick = addRunner;
+    c.appendChild(addBtn);
+  }
 }
 
-function toggleCmpAlgo(algo, checked) {
-  if (checked) cmpSelected.add(algo);
-  else cmpSelected.delete(algo);
+function addRunner() {
+  if (cmpRunners.length >= 7) return;
+  const id = `r${nextRunnerId++}`;
+  cmpRunners.push({
+    id: id,
+    algo: "Astar",
+    ht: 0,
+    mul: 1.0,
+    dls: 15,
+    autoDls: false
+  });
+  buildCmpAlgoChecks();
   buildCompareView();
+}
+
+function deleteRunner(id) {
+  if (cmpRunners.length <= 2) return;
+  cmpRunners = cmpRunners.filter(r => r.id !== id);
+  buildCmpAlgoChecks();
+  buildCompareView();
+}
+
+function changeRunnerAlgo(id, newAlgo) {
+  const runner = cmpRunners.find(r => r.id === id);
+  if (!runner) return;
+
+  runner.algo = newAlgo;
+  if (newAlgo === "GBFS" || newAlgo === "Astar") {
+    if (runner.ht === undefined) runner.ht = 0;
+    if (runner.mul === undefined) runner.mul = 1.0;
+  } else if (newAlgo === "DLS" || newAlgo === "IDS") {
+    if (runner.dls === undefined) runner.dls = 15;
+    if (runner.autoDls === undefined) runner.autoDls = false;
+  }
+
+  buildCmpAlgoChecks();
+  buildCompareView();
+}
+
+function saveRunnerParams(id) {
+  const runner = cmpRunners.find(r => r.id === id);
+  if (!runner) return;
+
+  if (runner.algo === "DLS" || runner.algo === "IDS") {
+    const dlsEl = document.getElementById(`cmp-dls-${id}`);
+    const autoEl = document.getElementById(`cmp-auto-${id}`);
+    if (autoEl) {
+      runner.autoDls = autoEl.checked;
+      if (dlsEl) dlsEl.disabled = autoEl.checked;
+    }
+    if (dlsEl) {
+      runner.dls = parseInt(dlsEl.value) || 15;
+    }
+  } else if (runner.algo === "GBFS" || runner.algo === "Astar") {
+    const htEl = document.getElementById(`cmp-ht-${id}`);
+    const hmulEl = document.getElementById(`cmp-hmul-${id}`);
+    if (htEl) runner.ht = parseInt(htEl.value) || 0;
+    if (hmulEl) runner.mul = parseFloat(hmulEl.value) || 1.0;
+  }
+}
+
+function getRunnerDisplayName(runner) {
+  const algo = runner.algo;
+  if (algo === "BFS" || algo === "DFS" || algo === "UCS") {
+    return algo;
+  }
+  if (algo === "DLS" || algo === "IDS") {
+    const name = algo === "IDS" ? "IDS" : "DLS";
+    return runner.autoDls ? `${name} - Tới đích` : `${name} - Độ sâu ${runner.dls || 15}`;
+  }
+  if (algo === "GBFS" || algo === "Astar") {
+    const name = algo === "Astar" ? "A★" : "GBFS";
+    const htype = runner.ht || 0;
+    let hName = "Manhattan";
+    if (htype === 1) hName = "Euclidean";
+    else if (htype === 2) hName = "Tie-breaking";
+    else if (htype === 3) hName = "Landmarks";
+
+    const mul = runner.mul !== undefined ? runner.mul : 1.0;
+    const mulStr = mul !== 1.0 ? ` × ${mul}` : "";
+    return `${name} - ${hName}${mulStr}`;
+  }
+  return algo;
 }
 
 // ── Build compare card grid ──
@@ -1058,80 +1310,86 @@ function buildCompareView() {
   document.getElementById("cmp-results-table").innerHTML = "";
   document.getElementById("cmp-progress-list").innerHTML = "";
 
-  if (cmpSelected.size === 0) return;
+  if (cmpRunners.length === 0) return;
 
-  [...cmpSelected].forEach((algo) => {
+  cmpRunners.forEach((runner) => {
+    const algo = runner.algo;
     const color = CMP_COLORS[algo];
     const card = document.createElement("div");
     card.className = "cmp-card";
-    card.id = `cmp-card-${algo}`;
+    card.id = `cmp-card-${runner.id}`;
     let extraParams = "";
     if (algo === "DLS" || algo === "IDS") {
       extraParams = `<div class="cmp-card-params">
         <label>Độ sâu:</label>
-        <input type="number" id="cmp-dls-${algo}" value="15" min="1" style="width: 40px" />
+        <input type="number" id="cmp-dls-${runner.id}" value="${runner.dls || 15}" min="1" style="width: 40px" ${runner.autoDls ? "disabled" : ""} onchange="saveRunnerParams('${runner.id}')" />
         <label style="display:flex;align-items:center;gap:3px;cursor:pointer">
-          <input type="checkbox" id="cmp-auto-${algo}" onchange="document.getElementById('cmp-dls-${algo}').disabled = this.checked" /> Max
+          <input type="checkbox" id="cmp-auto-${runner.id}" ${runner.autoDls ? "checked" : ""} onchange="saveRunnerParams('${runner.id}')" /> Max
         </label>
       </div>`;
     } else if (algo === "GBFS" || algo === "Astar") {
       extraParams = `<div class="cmp-card-params">
         <label>Heuristic:</label>
-        <select id="cmp-ht-${algo}">
-          <option value="0">Manhattan</option>
-          <option value="1">Euclidean</option>
+        <select id="cmp-ht-${runner.id}" onchange="saveRunnerParams('${runner.id}')">
+          <option value="0" ${runner.ht === 0 ? "selected" : ""}>Manhattan</option>
+          <option value="1" ${runner.ht === 1 ? "selected" : ""}>Euclidean</option>
+          <option value="2" ${runner.ht === 2 ? "selected" : ""}>Tie-breaking</option>
+          <option value="3" ${runner.ht === 3 ? "selected" : ""}>Landmarks (ALT)</option>
         </select>
         <label>Mul:</label>
-        <input type="number" id="cmp-hmul-${algo}" value="1" step="0.1" style="width: 40px" />
+        <input type="number" id="cmp-hmul-${runner.id}" value="${runner.mul !== undefined ? runner.mul : 1}" step="0.1" style="width: 40px" onchange="saveRunnerParams('${runner.id}')" />
       </div>`;
     }
 
     card.innerHTML = `
       <div class="cmp-card-header" style="border-top: 3px solid ${color}">
-        <span class="cmp-algo-badge" style="background:${color}">${algo}</span>
-        <span class="cmp-card-status" id="cmp-status-${algo}">Ready</span>
+        <span class="cmp-algo-badge" style="background:${color}">${algo === "Astar" ? "A★" : algo}</span>
+        <span class="cmp-card-status" id="cmp-status-${runner.id}">Ready</span>
       </div>
       ${extraParams}
-      <div class="cmp-grid-wrap" id="cmp-gwrap-${algo}">
-        <div id="cmp-grid-${algo}" class="cmp-mini-grid"></div>
+      <div class="cmp-grid-wrap" id="cmp-gwrap-${runner.id}">
+        <div id="cmp-grid-${runner.id}" class="cmp-mini-grid"></div>
       </div>
       <div class="cmp-card-stats">
         <div class="cmp-mini-stat">
            <div class="cmp-mini-stat-lbl">Expanded</div>
-           <div class="cmp-mini-stat-val" id="cmp-exp-${algo}">—</div>
+           <div class="cmp-mini-stat-val" id="cmp-exp-${runner.id}">—</div>
         </div>
         <div class="cmp-mini-stat">
            <div class="cmp-mini-stat-lbl">Cost</div>
-           <div class="cmp-mini-stat-val" id="cmp-cost-${algo}">—</div>
+           <div class="cmp-mini-stat-val" id="cmp-cost-${runner.id}">—</div>
         </div>
         <div class="cmp-mini-stat">
            <div class="cmp-mini-stat-lbl">Steps</div>
-           <div class="cmp-mini-stat-val" id="cmp-len-${algo}">—</div>
+           <div class="cmp-mini-stat-val" id="cmp-len-${runner.id}">—</div>
         </div>
       </div>`;
     container.appendChild(card);
-    renderMiniGrid(algo);
+    renderMiniGrid(runner);
   });
 
   // Build progress bars in right panel
   const pl = document.getElementById("cmp-progress-list");
   pl.innerHTML = "";
-  [...cmpSelected].forEach((algo) => {
+  cmpRunners.forEach((runner) => {
+    const algo = runner.algo;
+    const displayName = getRunnerDisplayName(runner);
     const div = document.createElement("div");
     div.style.marginBottom = "8px";
     div.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-        <span class="cmp-algo-badge sm" style="background:${CMP_COLORS[algo]}">${algo}</span>
-        <span style="font-size:0.6rem;color:var(--muted);font-family:'JetBrains Mono',monospace" id="cmp-plbl-${algo}">0 / 0</span>
+        <span class="cmp-algo-badge sm" style="background:${CMP_COLORS[algo]}">${algo === "Astar" ? "A★" : algo}</span>
+        <span class="cmp-progress-name-text" style="font-size:0.6rem;font-weight:600;margin-left:4px;color:var(--text-main);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName}</span>
+        <span style="font-size:0.6rem;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-left:4px" id="cmp-plbl-${runner.id}">0 / 0</span>
       </div>
-      <div class="pbar-bg"><div class="pbar-fill" id="cmp-pbar-${algo}" style="width:0%;background:${CMP_COLORS[algo]}"></div></div>`;
+      <div class="pbar-bg"><div class="pbar-fill" id="cmp-pbar-${runner.id}" style="width:0%;background:${CMP_COLORS[algo]}"></div></div>`;
     pl.appendChild(div);
   });
 }
 
 // ── Render a mini grid for one algorithm ──
-function renderMiniGrid(algo) {
-  const el = document.getElementById(`cmp-grid-${algo}`);
+function renderMiniGrid(runner) {
+  const el = document.getElementById(`cmp-grid-${runner.id}`);
   if (!el) return;
 
   el.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
@@ -1151,28 +1409,30 @@ function renderMiniGrid(algo) {
       d.style.cssText = `position:relative;border-radius:1px;width:100%;height:100%;`;
       d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
       d.dataset.terrain = t;
-      d.id = `${algo}_c_${i}_${j}`;
+      d.id = `${runner.id}_c_${i}_${j}`;
 
+      let mkHtml = "";
       if (i === sx && j === sy) {
-        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto">🟢</span>`;
+        mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🟢</span>`;
       } else if (i === tx && j === ty) {
-        d.innerHTML = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto">🔴</span>`;
+        mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🔴</span>`;
       }
+      d.innerHTML = `<div class="cell-info"></div>${mkHtml}`;
       el.appendChild(d);
     }
   }
 }
 
-function cmpCell(algo, x, y) {
-  return document.getElementById(`${algo}_c_${x}_${y}`);
+function cmpCell(runnerId, x, y) {
+  return document.getElementById(`${runnerId}_c_${x}_${y}`);
 }
 
 // ── Run comparison ──
 let cmpGlobalStep = 0;
 
 function initCompareState() {
-  if (cmpSelected.size === 0) return false;
-  
+  if (cmpRunners.length === 0) return false;
+
   if (cmpTimer) {
     clearTimeout(cmpTimer);
     cmpTimer = null;
@@ -1180,34 +1440,35 @@ function initCompareState() {
   cmpRunning = false;
 
   const cfgMap = {};
-  [...cmpSelected].forEach((algo) => {
+  cmpRunners.forEach((runner) => {
     let cfg = {};
-    if (algo === "DLS" || algo === "IDS") {
-      const dlsEl = document.getElementById(`cmp-dls-${algo}`);
-      const autoEl = document.getElementById(`cmp-auto-${algo}`);
+    if (runner.algo === "DLS" || runner.algo === "IDS") {
+      const dlsEl = document.getElementById(`cmp-dls-${runner.id}`);
+      const autoEl = document.getElementById(`cmp-auto-${runner.id}`);
       if (autoEl && autoEl.checked) cfg.dls = 9999;
       else if (dlsEl) cfg.dls = parseInt(dlsEl.value) || 15;
-    } else if (algo === "GBFS" || algo === "Astar") {
-      const htEl = document.getElementById(`cmp-ht-${algo}`);
-      const hmulEl = document.getElementById(`cmp-hmul-${algo}`);
+    } else if (runner.algo === "GBFS" || runner.algo === "Astar") {
+      const htEl = document.getElementById(`cmp-ht-${runner.id}`);
+      const hmulEl = document.getElementById(`cmp-hmul-${runner.id}`);
       if (htEl) cfg.ht = parseInt(htEl.value) || 0;
       if (hmulEl) cfg.mul = parseFloat(hmulEl.value) || 1;
     }
-    cfgMap[algo] = cfg;
+    cfgMap[runner.id] = cfg;
   });
 
   buildCompareView();
 
   cmpState = {};
-  [...cmpSelected].forEach((algo) => {
-    cmpState[algo] = {
-      steps: genStepsFor(algo, cfgMap[algo]),
+  cmpRunners.forEach((runner) => {
+    cmpState[runner.id] = {
+      algo: runner.algo,
+      steps: genStepsFor(runner.algo, cfgMap[runner.id]),
       stepIdx: 0,
       expandedCount: 0,
       done: false,
       result: null,
     };
-    const el = document.getElementById(`cmp-status-${algo}`);
+    const el = document.getElementById(`cmp-status-${runner.id}`);
     if (el) {
       el.textContent = "Ready";
       el.className = "cmp-card-status";
@@ -1223,13 +1484,12 @@ function runComparison() {
   if (!cmpState || Object.keys(cmpState).length === 0 || cmpGlobalStep === 0) {
     if (!initCompareState()) return;
   } else if (cmpGlobalStep > 0 && !cmpRunning) {
-    // If we've already started, and we click Run again, re-init to run from scratch
     if (!initCompareState()) return;
   }
-  
-  [...cmpSelected].forEach((algo) => {
-    const el = document.getElementById(`cmp-status-${algo}`);
-    if (el && !cmpState[algo].done) {
+
+  cmpRunners.forEach((runner) => {
+    const el = document.getElementById(`cmp-status-${runner.id}`);
+    if (el && !cmpState[runner.id].done) {
       el.textContent = "Running…";
       el.className = "cmp-card-status running";
     }
@@ -1253,26 +1513,27 @@ function pauseCompare() {
   btn.textContent = "▶ Tiếp tục";
   btn.onclick = resumeCompare;
   btn.disabled = false;
-  
+
   document.getElementById("btn-cmp-step").disabled = false;
   document.getElementById("btn-cmp-step-back").disabled = false;
   document.getElementById("btn-cmp-pause").disabled = true;
 }
 
+// Helper to resume comparison
 function resumeCompare() {
   cmpRunning = true;
   const btn = document.getElementById("btn-cmp-run");
   btn.textContent = "▶ Chạy so sánh";
   btn.onclick = runComparison;
   btn.disabled = true;
-  
+
   document.getElementById("btn-cmp-step").disabled = true;
   document.getElementById("btn-cmp-step-back").disabled = true;
   document.getElementById("btn-cmp-pause").disabled = false;
 
-  [...cmpSelected].forEach((algo) => {
-    const el = document.getElementById(`cmp-status-${algo}`);
-    if (el && !cmpState[algo].done) {
+  cmpRunners.forEach((runner) => {
+    const el = document.getElementById(`cmp-status-${runner.id}`);
+    if (el && !cmpState[runner.id].done) {
       el.textContent = "Running…";
       el.className = "cmp-card-status running";
     }
@@ -1287,34 +1548,34 @@ function clearVisCompareAllAction() {
     cmpTimer = null;
   }
   cmpRunning = false;
-  
-  [...cmpSelected].forEach((algo) => {
-     clearCompareVis(algo);
-     const expEl = document.getElementById(`cmp-exp-${algo}`);
-     const costEl = document.getElementById(`cmp-cost-${algo}`);
-     const lenEl = document.getElementById(`cmp-len-${algo}`);
-     const statusEl = document.getElementById(`cmp-status-${algo}`);
-     if(expEl) expEl.textContent = "—";
-     if(costEl) costEl.textContent = "—";
-     if(lenEl) lenEl.textContent = "—";
-     if(statusEl) {
-        statusEl.textContent = "Ready";
-        statusEl.className = "cmp-card-status";
-     }
-     
-     if (cmpState && cmpState[algo]) {
-        cmpState[algo].stepIdx = 0;
-        cmpState[algo].expandedCount = 0;
-        cmpState[algo].done = false;
-        cmpState[algo].result = null;
-     }
-     
-     const pb = document.getElementById(`cmp-pbar-${algo}`);
-     const pl = document.getElementById(`cmp-plbl-${algo}`);
-     if (pb) pb.style.width = "0%";
-     if (pl && cmpState && cmpState[algo]) pl.textContent = `0 / ${cmpState[algo].steps.length}`;
+
+  cmpRunners.forEach((runner) => {
+    clearCompareVis(runner.id);
+    const expEl = document.getElementById(`cmp-exp-${runner.id}`);
+    const costEl = document.getElementById(`cmp-cost-${runner.id}`);
+    const lenEl = document.getElementById(`cmp-len-${runner.id}`);
+    const statusEl = document.getElementById(`cmp-status-${runner.id}`);
+    if (expEl) expEl.textContent = "—";
+    if (costEl) costEl.textContent = "—";
+    if (lenEl) lenEl.textContent = "—";
+    if (statusEl) {
+      statusEl.textContent = "Ready";
+      statusEl.className = "cmp-card-status";
+    }
+
+    if (cmpState && cmpState[runner.id]) {
+      cmpState[runner.id].stepIdx = 0;
+      cmpState[runner.id].expandedCount = 0;
+      cmpState[runner.id].done = false;
+      cmpState[runner.id].result = null;
+    }
+
+    const pb = document.getElementById(`cmp-pbar-${runner.id}`);
+    const pl = document.getElementById(`cmp-plbl-${runner.id}`);
+    if (pb) pb.style.width = "0%";
+    if (pl && cmpState && cmpState[runner.id]) pl.textContent = `0 / ${cmpState[runner.id].steps.length}`;
   });
-  
+
   cmpGlobalStep = 0;
   document.getElementById("cmp-results-table").innerHTML = "";
 
@@ -1333,7 +1594,7 @@ function cmpAnimateLoop() {
     (s) => s.done || s.stepIdx >= s.steps.length,
   );
   if (allDone) {
-    Object.entries(cmpState).forEach(([algo, state]) => {
+    Object.entries(cmpState).forEach(([runnerId, state]) => {
       if (!state.done) {
         state.done = true;
         if (!state.result)
@@ -1357,19 +1618,19 @@ function cmpAnimateLoop() {
     return;
   }
 
-  Object.entries(cmpState).forEach(([algo, state]) => {
+  Object.entries(cmpState).forEach(([runnerId, state]) => {
     if (state.done) return;
     if (state.stepIdx >= state.steps.length) {
       state.done = true;
       return;
     }
     const step = state.steps[state.stepIdx++];
-    processCompareStep(algo, state, step);
+    processCompareStep(runnerId, state, step);
 
     const total = state.steps.length;
     const pct = total ? (state.stepIdx / total) * 100 : 0;
-    const pb = document.getElementById(`cmp-pbar-${algo}`);
-    const pl = document.getElementById(`cmp-plbl-${algo}`);
+    const pb = document.getElementById(`cmp-pbar-${runnerId}`);
+    const pl = document.getElementById(`cmp-plbl-${runnerId}`);
     if (pb) pb.style.width = pct + "%";
     if (pl) pl.textContent = `${state.stepIdx} / ${total}`;
   });
@@ -1382,86 +1643,91 @@ function stepCompare() {
   if (!cmpState || Object.keys(cmpState).length === 0) {
     if (!initCompareState()) return;
   }
-  
+
   const allDone = Object.values(cmpState).every(
     (s) => s.done || s.stepIdx >= s.steps.length,
   );
-  
+
   if (allDone) return;
 
-  Object.entries(cmpState).forEach(([algo, state]) => {
+  Object.entries(cmpState).forEach(([runnerId, state]) => {
     if (state.done) return;
     if (state.stepIdx >= state.steps.length) {
       state.done = true;
       return;
     }
     const step = state.steps[state.stepIdx++];
-    processCompareStep(algo, state, step);
+    processCompareStep(runnerId, state, step);
 
     const total = state.steps.length;
     const pct = total ? (state.stepIdx / total) * 100 : 0;
-    const pb = document.getElementById(`cmp-pbar-${algo}`);
-    const pl = document.getElementById(`cmp-plbl-${algo}`);
+    const pb = document.getElementById(`cmp-pbar-${runnerId}`);
+    const pl = document.getElementById(`cmp-plbl-${runnerId}`);
     if (pb) pb.style.width = pct + "%";
     if (pl) pl.textContent = `${state.stepIdx} / ${total}`;
   });
-  
+
   cmpGlobalStep++;
-  
+
   const allDoneNow = Object.values(cmpState).every(
     (s) => s.done || s.stepIdx >= s.steps.length,
   );
   if (allDoneNow) {
-     Object.entries(cmpState).forEach(([algo, state]) => {
-       if (!state.done) {
-         state.done = true;
-         if (!state.result)
-           state.result = {
-             found: false,
-             cost: "—",
-             steps: "—",
-             expanded: state.expandedCount,
-           };
-       }
-     });
-     showCmpResults();
+    Object.entries(cmpState).forEach(([runnerId, state]) => {
+      if (!state.done) {
+        state.done = true;
+        if (!state.result)
+          state.result = {
+            found: false,
+            cost: "—",
+            steps: "—",
+            expanded: state.expandedCount,
+          };
+      }
+    });
+    showCmpResults();
   }
 }
 
 function fastForwardCompareTo(targetGlobalStep) {
-  [...cmpSelected].forEach((algo) => {
-     clearCompareVis(algo);
+  cmpRunners.forEach((runner) => {
+    clearCompareVis(runner.id);
   });
   document.getElementById("cmp-results-table").innerHTML = "";
 
   let allDone = true;
 
-  [...cmpSelected].forEach((algo) => {
-    const state = cmpState[algo];
+  cmpRunners.forEach((runner) => {
+    const runnerId = runner.id;
+    const state = cmpState[runnerId];
+    if (!state) return;
     const steps = state.steps;
     const targetIdx = Math.min(targetGlobalStep, steps.length);
-    
+
     let expCount = 0;
     let sCost = "—";
     let sLen = "—";
     let isFound = false;
     let isNoPath = false;
     let isErr = false;
-    
-    const cellState = Array.from({length: m}, () => Array.from({length: n}, () => null));
+
+    const cellState = Array.from({ length: m }, () => Array.from({ length: n }, () => ({ state: null, info: null })));
 
     for (let i = 0; i < targetIdx; i++) {
       const step = steps[i];
       if (step.t === "E") {
         expCount++;
-        cellState[step.x][step.y] = "vis";
+        cellState[step.x][step.y].state = "vis";
+        cellState[step.x][step.y].info = null;
       } else if (step.t === "Fr") {
-        if (cellState[step.x][step.y] !== "vis") {
-          cellState[step.x][step.y] = "front";
+        if (cellState[step.x][step.y].state !== "vis") {
+          cellState[step.x][step.y].state = "front";
+          cellState[step.x][step.y].info = generateCellInfoHTML(step, state.algo);
         }
       } else if (step.t === "F") {
         step.path.forEach(([x, y]) => {
-          cellState[x][y] = "path";
+          cellState[x][y].state = "path";
+          cellState[x][y].info = null;
         });
         sCost = step.g;
         sLen = step.path.length - 1;
@@ -1471,9 +1737,10 @@ function fastForwardCompareTo(targetGlobalStep) {
       } else if (step.t === "Err") {
         isErr = true;
       } else if (step.t === "C") {
-        for(let r=0; r<m; r++) {
-          for(let c=0; c<n; c++) {
-            cellState[r][c] = null;
+        for (let r = 0; r < m; r++) {
+          for (let c = 0; c < n; c++) {
+            cellState[r][c].state = null;
+            cellState[r][c].info = null;
           }
         }
         expCount = 0;
@@ -1482,36 +1749,51 @@ function fastForwardCompareTo(targetGlobalStep) {
       }
     }
 
-    for(let r=0; r<m; r++) {
-      for(let c=0; c<n; c++) {
+    for (let r = 0; r < m; r++) {
+      for (let c = 0; c < n; c++) {
         const st = cellState[r][c];
-        if (st && !(r === sx && c === sy) && !(r === tx && c === ty)) {
-          const domC = cmpCell(algo, r, c);
+        if (st.state || st.info) {
+          const domC = cmpCell(runnerId, r, c);
           if (domC) {
-            domC.dataset.state = st;
-            if (st === "vis") {
-              domC.style.background = "var(--vis-bg)";
-              domC.style.outline = "1px solid var(--vis-border)";
-            } else if (st === "front") {
-              domC.style.background = "var(--front-bg)";
-              domC.style.outline = "1px solid var(--front-border)";
-            } else if (st === "path") {
-              domC.style.background = "var(--path-bg)";
-              domC.style.outline = "1.5px solid var(--path-border)";
+            if (st.state) {
+              domC.dataset.state = st.state;
+              if (st.state === "vis" && !(r === sx && c === sy) && !(r === tx && c === ty)) {
+                domC.style.background = "var(--vis-bg)";
+                domC.style.outline = "1px solid var(--vis-border)";
+                domC.style.boxShadow = "";
+              } else if (st.state === "front" && !(r === sx && c === sy) && !(r === tx && c === ty)) {
+                domC.style.background = "var(--front-bg)";
+                domC.style.outline = "1px solid var(--front-border)";
+                domC.style.boxShadow = "";
+              } else if (st.state === "path") {
+                const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
+                const t = M[r][c];
+                const baseColor = t === 0 ? "var(--wall)" : (tColors[t] || "var(--t1)");
+                domC.style.background = `linear-gradient(rgba(245,158,11,0.45), rgba(245,158,11,0.45)), ${baseColor}`;
+                domC.style.outline = "2.5px solid var(--path-border)";
+                domC.style.boxShadow = "0 0 8px rgba(245,158,11,0.6), inset 0 0 3px rgba(255,255,255,0.25)";
+              }
+            }
+            if (st.info) {
+              const infoEl = domC.querySelector(".cell-info");
+              if (infoEl) {
+                infoEl.innerHTML = st.info;
+                infoEl.style.display = showCmpLabels() ? "flex" : "none";
+              }
             }
           }
         }
       }
     }
 
-    const expEl = document.getElementById(`cmp-exp-${algo}`);
+    const expEl = document.getElementById(`cmp-exp-${runnerId}`);
     if (expEl) expEl.textContent = expCount;
-    const costEl = document.getElementById(`cmp-cost-${algo}`);
+    const costEl = document.getElementById(`cmp-cost-${runnerId}`);
     if (costEl) costEl.textContent = sCost;
-    const lenEl = document.getElementById(`cmp-len-${algo}`);
+    const lenEl = document.getElementById(`cmp-len-${runnerId}`);
     if (lenEl) lenEl.textContent = sLen;
 
-    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    const statusEl = document.getElementById(`cmp-status-${runnerId}`);
     if (statusEl) {
       if (isFound) {
         statusEl.textContent = "✓ Found";
@@ -1549,8 +1831,8 @@ function fastForwardCompareTo(targetGlobalStep) {
 
     const total = steps.length;
     const pct = total ? (targetIdx / total) * 100 : 0;
-    const pb = document.getElementById(`cmp-pbar-${algo}`);
-    const pl = document.getElementById(`cmp-plbl-${algo}`);
+    const pb = document.getElementById(`cmp-pbar-${runnerId}`);
+    const pl = document.getElementById(`cmp-plbl-${runnerId}`);
     if (pb) pb.style.width = pct + "%";
     if (pl) pl.textContent = `${targetIdx} / ${total}`;
   });
@@ -1569,10 +1851,11 @@ function stepBackCompare() {
   fastForwardCompareTo(cmpGlobalStep - 1);
 }
 
-function processCompareStep(algo, state, step) {
+function processCompareStep(runnerId, state, step) {
+  const algo = state.algo;
   if (step.t === "E") {
     state.expandedCount++;
-    const c = cmpCell(algo, step.x, step.y);
+    const c = cmpCell(runnerId, step.x, step.y);
     if (
       c &&
       !(step.x === sx && step.y === sy) &&
@@ -1581,11 +1864,17 @@ function processCompareStep(algo, state, step) {
       c.style.background = "var(--vis-bg)";
       c.style.outline = "1px solid var(--vis-border)";
       c.dataset.state = "vis";
+      // Clear cell-info on expand
+      const info = c.querySelector(".cell-info");
+      if (info) {
+        info.innerHTML = "";
+        info.style.display = "none";
+      }
     }
-    const expEl = document.getElementById(`cmp-exp-${algo}`);
+    const expEl = document.getElementById(`cmp-exp-${runnerId}`);
     if (expEl) expEl.textContent = state.expandedCount;
   } else if (step.t === "Fr") {
-    const c = cmpCell(algo, step.x, step.y);
+    const c = cmpCell(runnerId, step.x, step.y);
     if (
       c &&
       c.dataset.state !== "vis" &&
@@ -1595,23 +1884,29 @@ function processCompareStep(algo, state, step) {
       c.style.background = "var(--front-bg)";
       c.style.outline = "1px solid var(--front-border)";
       c.dataset.state = "front";
+      // Set cell info
+      setCellInfo(c, step, algo);
     }
   } else if (step.t === "F") {
     step.path.forEach(([x, y], idx) => {
       setTimeout(() => {
-        const c = cmpCell(algo, x, y);
-        if (c && !(x === sx && y === sy) && !(x === tx && y === ty)) {
-          c.style.background = "var(--path-bg)";
-          c.style.outline = "1.5px solid var(--path-border)";
+        const c = cmpCell(runnerId, x, y);
+        if (c) {
+          const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
+          const t = M[x][y];
+          const baseColor = t === 0 ? "var(--wall)" : (tColors[t] || "var(--t1)");
+          c.style.background = `linear-gradient(rgba(245,158,11,0.45), rgba(245,158,11,0.45)), ${baseColor}`;
+          c.style.outline = "2.5px solid var(--path-border)";
+          c.style.boxShadow = "0 0 8px rgba(245,158,11,0.6), inset 0 0 3px rgba(255,255,255,0.25)";
           c.dataset.state = "path";
         }
       }, idx * 25);
     });
-    const costEl = document.getElementById(`cmp-cost-${algo}`);
-    const lenEl = document.getElementById(`cmp-len-${algo}`);
+    const costEl = document.getElementById(`cmp-cost-${runnerId}`);
+    const lenEl = document.getElementById(`cmp-len-${runnerId}`);
     if (costEl) costEl.textContent = step.g;
     if (lenEl) lenEl.textContent = step.path.length - 1;
-    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    const statusEl = document.getElementById(`cmp-status-${runnerId}`);
     if (statusEl) {
       statusEl.textContent = "✓ Found";
       statusEl.className = "cmp-card-status found";
@@ -1624,7 +1919,7 @@ function processCompareStep(algo, state, step) {
       expanded: state.expandedCount,
     };
   } else if (step.t === "N") {
-    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    const statusEl = document.getElementById(`cmp-status-${runnerId}`);
     if (statusEl) {
       statusEl.textContent = "✗ No path";
       statusEl.className = "cmp-card-status nofound";
@@ -1637,7 +1932,7 @@ function processCompareStep(algo, state, step) {
       expanded: state.expandedCount,
     };
   } else if (step.t === "Err") {
-    const statusEl = document.getElementById(`cmp-status-${algo}`);
+    const statusEl = document.getElementById(`cmp-status-${runnerId}`);
     if (statusEl) {
       statusEl.textContent = "⚠ Overloaded";
       statusEl.className = "cmp-card-status nofound";
@@ -1652,28 +1947,37 @@ function processCompareStep(algo, state, step) {
   } else if (step.t === "I") {
     // IDS depth marker — just skip in compare mode
   } else if (step.t === "C") {
-    clearCompareVis(algo);
+    clearCompareVis(runnerId);
   }
 }
 
-function clearCompareVis(algo) {
+function clearCompareVis(runnerId) {
   const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
   for (let i = 0; i < m; i++) {
     for (let j = 0; j < n; j++) {
-      const c = cmpCell(algo, i, j);
-      if (c && c.dataset.state) {
-        delete c.dataset.state;
-        const t = M[i][j];
-        if (i === sx && j === sy) {
-          c.style.background = tColors[t] || "var(--t1)";
-          c.style.outline = "";
-        } else if (i === tx && j === ty) {
-          c.style.background = tColors[t] || "var(--t1)";
-          c.style.outline = "";
-        } else {
-          c.style.background =
-            t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
-          c.style.outline = "";
+      const c = cmpCell(runnerId, i, j);
+      if (c) {
+        if (c.dataset.state) {
+          delete c.dataset.state;
+          const t = M[i][j];
+          c.style.boxShadow = "";
+          if (i === sx && j === sy) {
+            c.style.background = tColors[t] || "var(--t1)";
+            c.style.outline = "";
+          } else if (i === tx && j === ty) {
+            c.style.background = tColors[t] || "var(--t1)";
+            c.style.outline = "";
+          } else {
+            c.style.background =
+              t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
+            c.style.outline = "";
+          }
+        }
+        // Always clear cell-info text and display
+        const info = c.querySelector(".cell-info");
+        if (info) {
+          info.innerHTML = "";
+          info.style.display = "none";
         }
       }
     }
@@ -1712,7 +2016,10 @@ function showCmpResults() {
 
   const results = Object.entries(cmpState)
     .filter(([, s]) => s.result)
-    .map(([algo, s]) => ({ algo, ...s.result }));
+    .map(([runnerId, s]) => {
+      const runner = cmpRunners.find((r) => r.id === runnerId) || { id: runnerId, algo: s.algo };
+      return { runner, ...s.result };
+    });
 
   if (!results.length) return;
 
@@ -1761,15 +2068,17 @@ function showCmpResults() {
         </thead>
         <tbody>
           ${results
-            .map((r, idx) => {
-              const isBestCost = r.found && r.cost === minCost;
-              const isBestExp = r.found && r.expanded === minExp;
-              const isBestStep = r.found && r.steps === minStep;
-              const rowClass = idx === 0 && r.found ? "cmp-winner-row" : "";
-              return `
+      .map((r, idx) => {
+        const isBestCost = r.found && r.cost === minCost;
+        const isBestExp = r.found && r.expanded === minExp;
+        const isBestStep = r.found && r.steps === minStep;
+        const rowClass = idx === 0 && r.found ? "cmp-winner-row" : "";
+        const displayName = getRunnerDisplayName(r.runner);
+        return `
               <tr class="${rowClass}">
                 <td>
-                  <span class="cmp-algo-badge sm" style="background:${CMP_COLORS[r.algo]}">${r.algo}</span>
+                  <span class="cmp-algo-badge sm" style="background:${CMP_COLORS[r.runner.algo]}">${r.runner.algo === "Astar" ? "A★" : r.runner.algo}</span>
+                  <span style="font-size:0.75rem;font-weight:600;color:var(--text-main);margin-left:4px">${displayName}</span>
                   ${idx === 0 && r.found ? '<span class="cmp-crown">🏆</span>' : ""}
                 </td>
                 <td><span class="cmp-result-badge ${r.found ? "found" : "nofound"}">${r.found ? "✓ Tìm thấy" : "✗ Không có"}</span></td>
@@ -1777,8 +2086,8 @@ function showCmpResults() {
                 <td class="${isBestCost ? "cmp-best-cell" : ""}">${r.cost}${isBestCost ? ' <span class="cmp-star">★</span>' : ""}</td>
                 <td class="${isBestStep ? "cmp-best-cell" : ""}">${r.steps}${isBestStep ? ' <span class="cmp-star">★</span>' : ""}</td>
               </tr>`;
-            })
-            .join("")}
+      })
+      .join("")}
         </tbody>
       </table>
       <div class="cmp-table-note">★ = tốt nhất trong nhóm tìm thấy đường</div>
