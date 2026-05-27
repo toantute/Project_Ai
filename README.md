@@ -1,10 +1,10 @@
 # Pathfinding Visualizer
 
-Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pathfinding) trên mê cung. Bao gồm giao diện web và chương trình C++ dòng lệnh
+Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pathfinding) trên mê cung
 
 ## Tính năng
 
-* Trực quan hóa quá trình tìm kiếm trên Web
+* Trực quan hóa các giải thuật tìm kiếm trong AI trên Web
 
 * Hỗ trợ nhiều thuật toán:
   * Breadth-First Search (BFS)
@@ -14,7 +14,7 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
   * Iterative Deepening Search (IDS)
   * Greedy Best-First Search (GBFS)
   * A* Search
-* So sánh nhiều thuật toán chạy song song
+* So sánh 2-7 thuật toán chạy song song
 * Chạy từng bước (step-by-step)
 * Hỗ trợ nhiều loại địa hình với chi phí khác nhau
 
@@ -57,7 +57,7 @@ https://toantute.github.io/Project_Ai/
 ## Chế độ:
 
 * Mode 1: chạy 1 thuật toán
-* Mode 2: chạy song song nhiều thuật toán
+* Mode 2: chạy song song 2-7 thuật toán
 
 ## Cấu trúc dự án
 
