@@ -14,7 +14,7 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
   * Iterative Deepening Search (IDS)
   * Greedy Best-First Search (GBFS)
   * A* Search
-* So sánh hai thuật toán chạy song song
+* So sánh nhiều thuật toán chạy song song
 * Chạy từng bước (step-by-step)
 * Hỗ trợ nhiều loại địa hình với chi phí khác nhau
 
@@ -31,14 +31,14 @@ https://toantute.github.io/Project_Ai/
 
 *Thiết lập Lưới & Địa hình
 
-- Grid Setup: Chỉnh số Hàng/Cột và số loại Địa hình (T1-T3). Nhấn Làm mới hoặc Ngẫu nhiên.
+- Grid Setup: Chỉnh số Hàng/Cột và số loại Địa hình (T1-T4). Nhấn Làm mới để tự sửa hoặc Ngẫu nhiên.
 - Chi phí: Nhập giá trị điểm cho mỗi loại địa hình tại mục **Chi phí địa hình.
 
 *Công cụ Vẽ
 
 - Wall/Erase: Vẽ tường ngăn hoặc xóa.
 - Start/End: Đặt điểm bắt đầu (xanh) và kết thúc (đỏ).
-- T1, T2, T3: Vẽ các vùng di chuyển tốn phí (vàng, cam, nâu).
+- T1, T2, T3, T4: Vẽ các vùng di chuyển tốn phí (vàng, cam, nâu, đỏ).
 
 *Thuật toán & Thực thi
 
@@ -51,13 +51,13 @@ https://toantute.github.io/Project_Ai/
 *Theo dõi kết quả
 
 - Thống kê: Xem số node đã duyệt, tổng chi phí và chiều dài đường đi.
-- So sánh: Chạy song song 2 thuật toán để đối chiếu hiệu suất.
+- So sánh: Chạy song song nhiều thuật toán để đối chiếu hiệu suất.
 ---
 
 ## Chế độ:
 
 * Mode 1: chạy 1 thuật toán
-* Mode 2: chạy song song 2 thuật toán
+* Mode 2: chạy song song nhiều thuật toán
 
 ## Cấu trúc dự án
 
@@ -72,7 +72,7 @@ project/
 ## Công nghệ sử dụng
 
 * HTML /CSS / JavaScript
-* Các thuật toán tìm kiếm AI
+* Các thuật toán tìm kiếm trong AI
 
 ## Tác giả
 
