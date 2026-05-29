@@ -455,14 +455,24 @@ function algoGBFS(ht, mul) {
   const st = [],
     vis = A2(false),
     par = A2(null);
-  const pq = new Heap((a, b) => a.f - b.f);
-  vis[sx][sy] = true;
+  const pq = new Heap((a, b) => {
+    if (a.f !== b.f) return a.f - b.f;
+    if (a.h !== b.h) return a.h - b.h;
+    return a.rand - b.rand;
+  });
+  dis[sx][sy] = 0;
   par[sx][sy] = [sx, sy];
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, activeHt, activeMul) });
+  
+  const startH = heuristic(sx, sy, activeHt, activeMul);
+  const startRand = Math.random();
+  pq.push({ x: sx, y: sy, d: 0, g: 0, f: startH, h: startH, rand: startRand });
+  
   while (!pq.empty()) {
     const c = pq.pop();
     const { x, y } = c;
-    st.push({ t: "E", x, y, g: c.g, d: c.d });
+    if (c.g > dis[x][y]) continue;
+    const _eh = c.f - c.g;
+    st.push({ t: "E", x, y, g: c.g, d: c.d, h: c.h !== undefined ? c.h : (_eh >= 0 ? _eh : undefined), f: c.f, rand: c.rand });
     if (x === tx && y === ty) {
       st.push({ t: "F", path: traceParent(par), g: c.g });
       return st;
@@ -470,14 +480,18 @@ function algoGBFS(ht, mul) {
     for (let i = 0; i < 4; i++) {
       const nx = x + dx[i],
         ny = y + dy[i];
-      if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
-        vis[nx][ny] = true;
-        par[nx][ny] = [x, y];
+      if (ok(nx, ny) && M[nx][ny]) {
         const ng = c.g + w[M[nx][ny]];
-        const nd = c.d + 1;
-        const nh = heuristic(nx, ny, activeHt, activeMul);
-        pq.push({ x: nx, y: ny, d: nd, g: ng, f: nh });
-        st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nh, d: nd });
+        if (ng < dis[nx][ny]) {
+          dis[nx][ny] = ng;
+          par[nx][ny] = [x, y];
+          const nd = c.d + 1;
+          const nh = heuristic(nx, ny, activeHt, activeMul);
+          const nf = ng + nh;
+          const nrand = Math.random();
+          pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf, h: nh, rand: nrand });
+          st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nf, d: nd, rand: nrand });
+        }
       }
     }
   }
@@ -495,15 +509,24 @@ function algoAstar(ht, mul) {
   const st = [],
     dis = A2(Infinity),
     par = A2(null);
-  const pq = new Heap((a, b) => a.f - b.f);
+  const pq = new Heap((a, b) => {
+    if (a.f !== b.f) return a.f - b.f;
+    if (a.h !== b.h) return a.h - b.h;
+    return a.rand - b.rand;
+  });
   dis[sx][sy] = 0;
   par[sx][sy] = [sx, sy];
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: heuristic(sx, sy, activeHt, activeMul) });
+  
+  const startH = heuristic(sx, sy, activeHt, activeMul);
+  const startRand = Math.random();
+  pq.push({ x: sx, y: sy, d: 0, g: 0, f: startH, h: startH, rand: startRand });
+  
   while (!pq.empty()) {
     const c = pq.pop();
     const { x, y } = c;
     if (c.g > dis[x][y]) continue;
-    st.push({ t: "E", x, y, g: c.g, d: c.d });
+    const _eh = c.f - c.g;
+    st.push({ t: "E", x, y, g: c.g, d: c.d, h: c.h !== undefined ? c.h : (_eh >= 0 ? _eh : undefined), f: c.f, rand: c.rand });
     if (x === tx && y === ty) {
       st.push({ t: "F", path: traceParent(par), g: c.g });
       return st;
@@ -519,8 +542,9 @@ function algoAstar(ht, mul) {
           const nd = c.d + 1;
           const nh = heuristic(nx, ny, activeHt, activeMul);
           const nf = ng + nh;
-          pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf });
-          st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nf, d: nd });
+          const nrand = Math.random();
+          pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf, h: nh, rand: nrand });
+          st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nf, d: nd, rand: nrand });
         }
       }
     }
@@ -613,17 +637,19 @@ function updateDrawModes() {
   const c = document.getElementById("draw-modes");
   c.innerHTML = "";
   const modes = [
-    { id: "wall", label: "⬛ Tường" },
-    { id: "erase", label: "◻ Xoá" },
-    { id: "start", label: "🟢 Xuất phát" },
-    { id: "end", label: "🏆 Đích đến" },
+    { id: "wall",  icon: "⬛", label: "Tường" },
+    { id: "erase", icon: "◻",  label: "Xoá" },
+    { id: "start", icon: "🟢", label: "Xuất phát" },
+    { id: "end",   icon: "🏆", label: "Đích đến" },
   ];
-  for (let i = 1; i <= tcnt; i++)
-    modes.push({ id: `t${i}`, label: `${TNAMES[i].split(" ")[0]}` });
+  for (let i = 1; i <= tcnt; i++) {
+    const icons = ["🌿","🏜️","🪨","🌊"];
+    modes.push({ id: `t${i}`, icon: icons[i-1] || "◆", label: TNAMES[i].replace(/T\d · /, "") });
+  }
   modes.forEach((mo) => {
     const b = document.createElement("div");
     b.className = "dm-btn" + (drawMode === mo.id ? " active" : "");
-    b.textContent = mo.label;
+    b.innerHTML = `<span class="dm-icon">${mo.icon}</span>${mo.label}`;
     b.onclick = () => setDrawMode(mo.id);
     c.appendChild(b);
   });
@@ -636,12 +662,37 @@ function setDrawMode(id) {
 
 function renderGrid() {
   const el = document.getElementById("grid");
-  const avW = Math.floor((window.innerWidth * 0.52 - 32) / n);
-  const avH = Math.floor((window.innerHeight * 0.73 - 32) / m);
+  const LBL_SIZE = 22;
+  const avW = Math.floor((window.innerWidth * 0.52 - 32 - LBL_SIZE) / n);
+  const avH = Math.floor((window.innerHeight * 0.73 - 32 - LBL_SIZE) / m);
   const cs = Math.max(18, Math.min(48, Math.min(avW, avH)));
-  el.style.gridTemplateColumns = `repeat(${n}, ${cs}px)`;
+  
+  el.style.gridTemplateColumns = `${LBL_SIZE}px repeat(${n}, ${cs}px)`;
   el.innerHTML = "";
+
+  // Top-left corner
+  const corner = document.createElement("div");
+  corner.className = "grid-lbl";
+  corner.style.height = LBL_SIZE + "px";
+  el.appendChild(corner);
+
+  // Column headers
+  for (let j = 0; j < n; j++) {
+    const lbl = document.createElement("div");
+    lbl.className = "grid-lbl";
+    lbl.textContent = j;
+    lbl.style.height = LBL_SIZE + "px";
+    el.appendChild(lbl);
+  }
+
   for (let i = 0; i < m; i++) {
+    // Row header
+    const rlbl = document.createElement("div");
+    rlbl.className = "grid-lbl";
+    rlbl.textContent = i;
+    rlbl.style.height = cs + "px";
+    el.appendChild(rlbl);
+
     for (let j = 0; j < n; j++) {
       const d = document.createElement("div");
       d.className = "cell";
@@ -663,6 +714,80 @@ function renderGrid() {
     }
   }
   document.addEventListener("mouseup", () => (isDown = false));
+
+  el.style.position = "relative";
+  const char = document.createElement("img");
+  char.id = "char-runner";
+  char.src = "img/dungim (2).png";
+  char.style.position = "absolute";
+  char.style.display = "none";
+  char.style.zIndex = "50";
+  char.style.pointerEvents = "none";
+  char.style.transition = "transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)";
+  el.appendChild(char);
+}
+
+let charMoveTimer = null;
+let charLastX = -1;
+
+function updateCharRunner(x, y, instant = false, forceDuration = null) {
+  if (compareMode) return;
+  const char = document.getElementById("char-runner");
+  const c = document.getElementById(`c_${x}_${y}`);
+  if (!char || !c) return;
+  
+  char.style.display = "block";
+  
+  const cx = c.offsetLeft;
+  const cy = c.offsetTop;
+  const cw = c.offsetWidth;
+  const ch = c.offsetHeight;
+  
+  char.style.width = cw + "px";
+  char.style.height = ch + "px";
+
+  if (charMoveTimer) {
+    clearTimeout(charMoveTimer);
+    charMoveTimer = null;
+  }
+
+  let scaleX = char.dataset.scaleX ? parseFloat(char.dataset.scaleX) : 0.7;
+  
+  if (charLastX === -1) {
+    char.style.transition = "none";
+    char.style.transform = `translate(${cx}px, ${cy}px) scaleX(0.7) scaleY(0.7)`;
+    charLastX = cx;
+    char.dataset.scaleX = 0.7;
+    if (!char.src.includes("dungim%20(2).png") && !char.src.includes("dungim (2).png")) char.src = "img/dungim (2).png";
+    return;
+  }
+
+  if (cx < charLastX) {
+    scaleX = -0.7;
+  } else if (cx > charLastX) {
+    scaleX = 0.7;
+  }
+  charLastX = cx;
+  char.dataset.scaleX = scaleX;
+
+  let duration = forceDuration !== null ? forceDuration : 300;
+  let standDelay = duration + 50;
+  
+  if (instant) {
+    char.style.transition = "none";
+    if (!char.src.includes("dungim%20(2).png") && !char.src.includes("dungim (2).png")) char.src = "img/dungim (2).png";
+  } else {
+    char.style.transition = `transform ${duration}ms linear`;
+    if (!char.src.includes("diboquaphai")) char.src = "img/diboquaphai.png";
+    
+    charMoveTimer = setTimeout(() => {
+      if (!char.src.includes("dungim%20(2).png") && !char.src.includes("dungim (2).png")) char.src = "img/dungim (2).png";
+      charMoveTimer = null;
+    }, standDelay);
+  }
+  
+  char.style.objectFit = "contain";
+  char.style.transform = `translate(${cx}px, ${cy}px) scaleX(${scaleX}) scaleY(0.7)`;
 }
 
 function refreshCell(i, j) {
@@ -752,6 +877,7 @@ function startRun() {
   document.getElementById("s-depth-card").style.display = isIDS
     ? "block"
     : "none";
+  dsInit();
   animateLoop();
 }
 
@@ -781,6 +907,7 @@ function stepRun() {
     document.getElementById("s-depth-card").style.display = isIDS
       ? "block"
       : "none";
+    dsInit();
   }
   if (stepIdx >= steps.length) return;
   processStep(steps[stepIdx++]);
@@ -826,6 +953,12 @@ function clearVis() {
   steps = [];
   stepIdx = 0;
   expandedCount = 0;
+  // Reset DS visualizer
+  dsAlgo = null; dsType = null; dsItems = []; dsPopPending = false;
+  dsPendingSortId = null;
+  if (dsSortTimer) { clearTimeout(dsSortTimer); dsSortTimer = null; }
+  const dsSec = document.getElementById('ds-vis-sec');
+  if (dsSec && !compareMode) dsSec.style.display = 'none';
   document.querySelectorAll(".cell").forEach((c) => {
     c.classList.remove("vis", "front", "onpath", "popping", "pathpop");
     const ov = c.querySelector(".cell-ov");
@@ -836,7 +969,10 @@ function clearVis() {
       info.style.display = "none";
     }
   });
-  document.getElementById("log").innerHTML = "";
+  
+  const char = document.getElementById("char-runner");
+  if (char) char.style.display = "none";
+
   resetStats();
   document.getElementById("btn-run").disabled = false;
   document.getElementById("btn-step").disabled = false;
@@ -946,6 +1082,336 @@ function setCellInfo(c, step, algo) {
   info.style.display = shouldShow ? "flex" : "none";
 }
 
+// ═══════════════════════════════════════
+//  DATA STRUCTURE VISUALIZER
+// ═══════════════════════════════════════
+const DS_MAX = 7;      // max items shown before "+N"
+let dsItems = [];      // [{id, x, y, g, h, f, d}]
+let dsNextId = 0;
+let dsAlgo = null;
+let dsType = null;     // 'queue' | 'stack' | 'pqueue'
+let dsPopPending = false; // prevent re-render during leave animation
+let dsPendingSortId = null;
+let dsSortTimer = null;
+
+function dsInit() {
+  if (compareMode) return;
+  dsItems = [];
+  dsNextId = 0;
+  dsPopPending = false;
+  dsPendingSortId = null;
+  if (dsSortTimer) { clearTimeout(dsSortTimer); dsSortTimer = null; }
+  dsAlgo = document.getElementById('algo').value;
+
+  if (dsAlgo === 'BFS') dsType = 'queue';
+  else if (['DFS','DLS','IDS'].includes(dsAlgo)) dsType = 'stack';
+  else dsType = 'pqueue';
+
+  const sec = document.getElementById('ds-vis-sec');
+  const lbl = document.getElementById('ds-vis-label');
+  if (!sec) return;
+  sec.style.display = '';
+
+  if (dsType === 'queue') {
+    lbl.textContent = 'Queue – FIFO (BFS)';
+  } else if (dsType === 'stack') {
+    lbl.textContent = `Stack – LIFO (${dsAlgo})`;
+  } else {
+    const nm = { UCS:'g', GBFS:'h', Astar:'f' };
+    lbl.textContent = `Priority Queue – min-${nm[dsAlgo]||'?'} (${dsAlgo === 'Astar' ? 'A★' : dsAlgo})`;
+  }
+
+  dsRender(null);
+}
+
+function dsSort(a, b) {
+  if (dsAlgo === 'UCS')   return (a.g ?? 0) - (b.g ?? 0);
+  if (dsAlgo === 'GBFS')  return (a.h ?? 0) - (b.h ?? 0);
+  if (dsAlgo === 'Astar') {
+    const fa = a.f ?? 0, fb = b.f ?? 0;
+    if (fa !== fb) return fa - fb;
+    const ha = a.h ?? 0, hb = b.h ?? 0;
+    if (ha !== hb) return ha - hb;
+    return (a.rand ?? 0) - (b.rand ?? 0);
+  }
+  return 0;
+}
+
+function dsGetValHTML(item) {
+  const fmt = v => (v !== undefined && v !== null) ? +v.toFixed(1) : '?';
+  if (dsAlgo === 'BFS' || dsAlgo === 'DFS' || dsAlgo === 'DLS' || dsAlgo === 'IDS')
+    return `<span class="ds-val-d">d:${item.d ?? '?'}</span>`;
+  if (dsAlgo === 'UCS')   return `<span class="ds-val-g">g:${fmt(item.g)}</span>`;
+  if (dsAlgo === 'GBFS')  return `<span class="ds-val-h">h:${fmt(item.h)}</span>`;
+  if (dsAlgo === 'Astar') {
+    return `
+      <div style="font-size: 0.45rem; line-height: 1.1; margin-bottom: 1px;">
+        <span class="ds-val-g">g:${fmt(item.g)}</span> 
+        <span class="ds-val-h">h:${fmt(item.h)}</span>
+      </div>
+      <span class="ds-val-f">f:${fmt(item.f)}</span>
+    `;
+  }
+  return '';
+}
+
+function spawnFlyingNode(fromRect, toRect, innerHtml, isPush) {
+  const ghost = document.createElement('div');
+  const duration = isPush ? 600 : 300;
+  ghost.className = 'ds-item';
+  ghost.style.position = 'fixed';
+  ghost.style.zIndex = 9999;
+  ghost.style.margin = '0';
+  ghost.style.left = fromRect.left + 'px';
+  ghost.style.top = fromRect.top + 'px';
+  ghost.style.width = fromRect.width + 'px';
+  ghost.style.height = fromRect.height + 'px';
+  ghost.style.transition = `all ${duration}ms cubic-bezier(0.25, 1, 0.5, 1)`;
+  ghost.style.pointerEvents = 'none';
+  ghost.innerHTML = innerHtml;
+  
+  if (isPush) {
+    ghost.style.background = 'var(--front-bg)';
+    ghost.style.color = '#fff';
+    ghost.style.opacity = '0.9';
+  } else {
+    ghost.style.background = '#f472b6';
+    ghost.style.color = '#fff';
+    ghost.style.boxShadow = '0 0 15px rgba(244,114,182,0.6)';
+    ghost.style.opacity = '1';
+  }
+
+  document.body.appendChild(ghost);
+  ghost.getBoundingClientRect(); // force reflow
+
+  ghost.style.left = toRect.left + 'px';
+  ghost.style.top = toRect.top + 'px';
+  ghost.style.width = toRect.width + 'px';
+  ghost.style.height = toRect.height + 'px';
+  ghost.style.opacity = '0.1';
+  ghost.style.transform = isPush ? 'scale(0.5)' : 'scale(1.5)';
+
+  setTimeout(() => ghost.remove(), duration);
+}
+
+function dsPushItem(step) {
+  if (!dsAlgo || compareMode) return;
+  const item = {
+    id: dsNextId++,
+    x: step.x, y: step.y,
+    g: step.g, h: step.h, f: step.f, d: step.d, rand: step.rand
+  };
+
+  if (dsSortTimer) {
+    clearTimeout(dsSortTimer);
+    dsSortTimer = null;
+    dsPendingSortId = null;
+  }
+
+  if (dsType === 'pqueue') {
+    // Replace existing entry for same cell (relaxation / update)
+    const eIdx = dsItems.findIndex(i => i.x === item.x && i.y === item.y);
+    if (eIdx !== -1) {
+      item.id = dsItems[eIdx].id; // keep same id to avoid re-enter anim
+      dsItems[eIdx] = item;
+    } else {
+      dsItems.push(item);
+    }
+    dsItems.sort(dsSort);
+    dsPendingSortId = item.id;
+  } else if (dsType === 'queue') {
+    dsItems.push(item);   // enqueue to back
+  } else {
+    dsItems.unshift(item); // push to top (front of array)
+  }
+
+  dsRender(item.id);
+
+  // Flying animation
+  const cellEl = document.getElementById(`c_${step.x}_${step.y}`);
+  const track = document.getElementById('ds-track');
+  if (cellEl && track) {
+    const fR = cellEl.getBoundingClientRect();
+    let targetRect;
+    const newEl = document.getElementById(`ds-item-${item.id}`);
+    
+    if (newEl) {
+      targetRect = newEl.getBoundingClientRect();
+    } else {
+      const tR = track.getBoundingClientRect();
+      targetRect = {
+        left: tR.left + tR.width / 2 - 20,
+        top: tR.top + tR.height / 2 - 20,
+        width: 40,
+        height: 40
+      };
+    }
+    
+    spawnFlyingNode(fR, targetRect, `<div class="ds-coord">(${step.x},${step.y})</div>`, true);
+  }
+
+  if (dsType === 'pqueue') {
+    dsSortTimer = setTimeout(() => {
+      dsPendingSortId = null;
+      dsRender(null, { useFlip: true });
+    }, 600);
+  }
+}
+
+function dsPopItem(step) {
+  if (!dsAlgo || compareMode) return;
+  const idx = dsItems.findIndex(i => i.x === step.x && i.y === step.y);
+  if (idx === -1) { dsRender(null); return; }
+
+  // Animate the leaving DOM element before removing from array
+  const track = document.getElementById('ds-track');
+  if (track && idx < DS_MAX) {
+    const itemEls = track.querySelectorAll('.ds-item');
+    const el = itemEls[idx];
+    if (el) {
+      const fR = el.getBoundingClientRect();
+      const cellEl = document.getElementById(`c_${step.x}_${step.y}`);
+      const tR = cellEl ? cellEl.getBoundingClientRect() : fR;
+      spawnFlyingNode(fR, tR, el.innerHTML, false);
+
+      el.classList.remove('ds-next', 'ds-enter-l', 'ds-enter-r', 'ds-enter-d');
+      el.classList.add('ds-leaving');
+      dsPopPending = true;
+      dsItems.splice(idx, 1);
+      setTimeout(() => {
+        dsPopPending = false;
+        dsRender(null);
+      }, 300);
+      return;
+    }
+  }
+  dsItems.splice(idx, 1);
+  dsRender(null);
+}
+
+function dsClearItems() {
+  if (!dsAlgo || compareMode) return;
+  dsItems = [];
+  dsPopPending = false;
+  dsRender(null);
+}
+
+function dsRender(newItemId, opts = {}) {
+  if (dsPopPending) return; // wait for leave animation to finish
+  const track = document.getElementById('ds-track');
+  const badge = document.getElementById('ds-size-badge');
+  if (!track) return;
+  if (badge) badge.textContent = dsItems.length;
+
+  if (dsItems.length === 0) {
+    track.innerHTML = '<span class="ds-empty">empty</span>';
+    return;
+  }
+
+  const oldRects = new Map();
+  if (opts.useFlip) {
+    track.querySelectorAll('.ds-item').forEach(el => {
+      const idStr = el.id.replace('ds-item-', '');
+      if (idStr) oldRects.set(parseInt(idStr), el.getBoundingClientRect());
+    });
+  }
+
+  let visible = dsItems.slice(0, DS_MAX);
+  let overflow = dsItems.length - DS_MAX;
+
+  if (dsPendingSortId != null) {
+    const pId = dsPendingSortId;
+    const pIdx = visible.findIndex(i => i.id === pId);
+    if (pIdx !== -1) {
+      const [pItem] = visible.splice(pIdx, 1);
+      visible.push(pItem);
+    } else {
+      const realIdx = dsItems.findIndex(i => i.id === pId);
+      if (realIdx !== -1) {
+        visible.push(dsItems[realIdx]);
+        if (visible.length > DS_MAX) {
+          visible.splice(DS_MAX - 1, 1);
+        }
+      }
+    }
+  }
+
+  track.innerHTML = '';
+
+  visible.forEach((item, idx) => {
+    const isNew  = (item.id === newItemId);
+    const isNext = (idx === 0);
+
+    // Enter animation direction
+    let enterCls = '';
+    if (isNew) {
+      if (dsType === 'queue')  enterCls = ' ds-enter-r'; // new items at back → enter from right
+      else if (dsType === 'stack') enterCls = ' ds-enter-l'; // new top → enter from left
+      else                     enterCls = ' ds-enter-d'; // sorted insert → scale up
+    }
+
+    const el = document.createElement('div');
+    el.className = 'ds-item' + (isNext ? ' ds-next' : '') + enterCls;
+    el.id = `ds-item-${item.id}`;
+
+    const valHTML = dsGetValHTML(item);
+    el.innerHTML  = `<div class="ds-coord">(${item.x},${item.y})</div>` +
+                    (valHTML ? `<div class="ds-val">${valHTML}</div>` : '');
+    track.appendChild(el);
+
+    // Separator arrow
+    if (idx < visible.length - 1 || overflow > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'ds-sep';
+      // Stack: arrows point right (top is left), Queue/PQ: left
+      sep.textContent = dsType === 'stack' ? '›' : '›';
+      track.appendChild(sep);
+    }
+  });
+
+  if (overflow > 0) {
+    const more = document.createElement('div');
+    more.className = 'ds-more';
+    more.textContent = `+${overflow}`;
+    track.appendChild(more);
+  }
+
+  if (opts.useFlip) {
+    const newEls = Array.from(track.querySelectorAll('.ds-item'));
+    newEls.forEach(el => {
+      const idStr = el.id.replace('ds-item-', '');
+      const oldRect = oldRects.get(parseInt(idStr));
+      if (oldRect) {
+        const newRect = el.getBoundingClientRect();
+        const dx = oldRect.left - newRect.left;
+        const dy = oldRect.top - newRect.top;
+        if (dx !== 0 || dy !== 0) {
+          el.style.transition = 'none';
+          el.style.transform = `translate(${dx}px, ${dy}px)`;
+          el.style.zIndex = '100';
+          
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              el.style.transition = 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+              el.style.transform = 'none';
+              setTimeout(() => { el.style.zIndex = ''; }, 300);
+            });
+          });
+        }
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════
+function showExpandAnimation(domCell, step) {
+  // Ring ripple
+  const ring = document.createElement('div');
+  ring.className = 'cell-expand-ring';
+  domCell.appendChild(ring);
+  setTimeout(() => ring.remove(), 520);
+}
+
 function processStep(step) {
   if (step.t === "E") {
     expandedCount++;
@@ -960,20 +1426,23 @@ function processStep(step) {
         info.textContent = "";
         info.style.display = "none";
       }
+      // Show expand animation + why popup
+      showExpandAnimation(c, step);
+      // Pop from DS visualizer (item was at front/top/min)
+      dsPopItem(step);
     }
     document.getElementById("s-exp").textContent = expandedCount;
     const tbTag = step.tb ? ' <span style="color:#f97316;font-size:0.8em;font-weight:700">[TB]</span>' : "";
-    addLog(
-      "expand",
-      `<span style="color:var(--accent)">📍 Đang xét ô <b>(${step.x}, ${step.y})</b>${tbTag}</span> <br> <span style="opacity:0.75; font-size: 0.9em;">↳ Chi phí từ điểm bắt đầu: <b>${step.g}</b> &nbsp;|&nbsp; Đi qua: <b>${step.d} bước</b></span>`,
-    );
   } else if (step.t === "Fr") {
     const c = cell(step.x, step.y);
     if (c && !c.classList.contains("vis")) {
       c.classList.add("front");
       setCellInfo(c, step);
     }
+    // Push neighbor to DS visualizer
+    dsPushItem(step);
   } else if (step.t === "F") {
+    updateCharRunner(sx, sy, true);
     step.path.forEach(([x, y], idx) => {
       setTimeout(() => {
         const c = cell(x, y);
@@ -981,42 +1450,20 @@ function processStep(step) {
         c.classList.remove("front", "vis", "popping");
         c.classList.add("onpath", "pathpop");
         setTimeout(() => c.classList.remove("pathpop"), 300);
-      }, idx * 42);
+        
+        updateCharRunner(x, y, false, 300);
+      }, idx * 300);
     });
     document.getElementById("s-cost").textContent = step.g;
     document.getElementById("s-len").textContent = step.path.length - 1;
-    addLog(
-      "found",
-      `🎉 <b>Thành công! Đã tìm ra đường đi tới đích.</b><br><span style="opacity:0.9; font-size: 0.9em; font-weight: 500;">Tổng điểm chi phí: <b>${step.g}</b><br>Tổng số bước di chuyển: <b>${step.path.length - 1} bước</b></span>`,
-    );
   } else if (step.t === "N") {
-    addLog(
-      "nofound",
-      `❌ <b>Rất tiếc!</b> Không thể tìm thấy đường nào đi tới đích.`,
-    );
   } else if (step.t === "Err") {
-    addLog(
-      "nofound",
-      `⚠️ <b>Cảnh báo!</b> Bản đồ quá rộng, thuật toán quá tải (out of memory). Đã tự ngắt để tránh treo Tab browser.`,
-    );
   } else if (step.t === "I") {
     document.getElementById("s-depth").textContent = step.l;
-    addLog(
-      "info",
-      `🔄 <b>Đang quét (IDS): Độ sâu cần duyệt = <b>${step.l}</b></b>`,
-    );
   } else if (step.t === "C") {
     clearVisOnly();
+    dsClearItems(); // IDS restarts → clear DS
   }
-}
-
-function addLog(cls, msg) {
-  const log = document.getElementById("log");
-  const e = document.createElement("div");
-  e.className = `le ${cls}`;
-  e.innerHTML = msg;
-  log.appendChild(e);
-  log.scrollTop = log.scrollHeight;
 }
 
 function updateProgressBar() {
@@ -1031,9 +1478,12 @@ function fastForwardTo(targetIdx) {
   let sCost = "—";
   let sLen = "—";
   let sDepth = "0";
-  let logHtml = "";
 
   const cellState = Array.from({ length: m }, () => Array.from({ length: n }, () => ({ cls: null, info: null })));
+
+  let simDsItems = [];
+  let simDsNextId = 0;
+  let lastEx = -1, lastEy = -1;
 
   for (let i = 0; i < targetIdx; i++) {
     const step = steps[i];
@@ -1041,12 +1491,39 @@ function fastForwardTo(targetIdx) {
       expCount++;
       cellState[step.x][step.y].cls = "vis";
       cellState[step.x][step.y].info = null;
-      const tbTag = step.tb ? ' <span style="color:#f97316;font-size:0.8em;font-weight:700">[TB]</span>' : "";
-      logHtml += `<div class="le expand"><span style="color:var(--accent)">📍 Đang xét ô <b>(${step.x}, ${step.y})</b>${tbTag}</span> <br> <span style="opacity:0.75; font-size: 0.9em;">↳ Chi phí từ điểm bắt đầu: <b>${step.g}</b> &nbsp;|&nbsp; Đi qua: <b>${step.d} bước</b></span></div>`;
+      lastEx = step.x;
+      lastEy = step.y;
+
+      if (dsAlgo && !compareMode) {
+        const idx = simDsItems.findIndex(i => i.x === step.x && i.y === step.y);
+        if (idx !== -1) simDsItems.splice(idx, 1);
+      }
     } else if (step.t === "Fr") {
       if (cellState[step.x][step.y].cls !== "vis") {
         cellState[step.x][step.y].cls = "front";
         cellState[step.x][step.y].info = generateCellInfoHTML(step);
+      }
+
+      if (dsAlgo && !compareMode) {
+        const item = {
+          id: simDsNextId++,
+          x: step.x, y: step.y,
+          g: step.g, h: step.h, f: step.f, d: step.d, rand: step.rand
+        };
+        if (dsType === 'pqueue') {
+          const eIdx = simDsItems.findIndex(i => i.x === item.x && i.y === item.y);
+          if (eIdx !== -1) {
+            item.id = simDsItems[eIdx].id;
+            simDsItems[eIdx] = item;
+          } else {
+            simDsItems.push(item);
+          }
+          simDsItems.sort(dsSort);
+        } else if (dsType === 'queue') {
+          simDsItems.push(item);
+        } else {
+          simDsItems.unshift(item);
+        }
       }
     } else if (step.t === "F") {
       step.path.forEach(([x, y]) => {
@@ -1054,14 +1531,10 @@ function fastForwardTo(targetIdx) {
       });
       sCost = step.g;
       sLen = step.path.length - 1;
-      logHtml += `<div class="le found">🎉 <b>Thành công! Đã tìm ra đường đi tới đích.</b><br><span style="opacity:0.9; font-size: 0.9em; font-weight: 500;">Tổng điểm chi phí: <b>${step.g}</b><br>Tổng số bước di chuyển: <b>${step.path.length - 1} bước</b></span></div>`;
     } else if (step.t === "N") {
-      logHtml += `<div class="le nofound">❌ <b>Rất tiếc!</b> Không thể tìm thấy đường nào đi tới đích.</div>`;
     } else if (step.t === "Err") {
-      logHtml += `<div class="le nofound">⚠️ <b>Cảnh báo!</b> Bản đồ quá rộng, thuật toán quá tải (out of memory). Đã tự ngắt để tránh treo Tab browser.</div>`;
     } else if (step.t === "I") {
       sDepth = step.l;
-      logHtml += `<div class="le info">🔄 <b>Đang quét (IDS): Độ sâu cần duyệt = <b>${step.l}</b></b></div>`;
     } else if (step.t === "C") {
       for (let r = 0; r < m; r++) {
         for (let c = 0; c < n; c++) {
@@ -1072,6 +1545,11 @@ function fastForwardTo(targetIdx) {
       expCount = 0;
       sCost = "—";
       sLen = "—";
+
+      if (dsAlgo && !compareMode) {
+        simDsItems = [];
+        simDsNextId = 0;
+      }
     }
   }
 
@@ -1102,9 +1580,21 @@ function fastForwardTo(targetIdx) {
   document.getElementById("s-len").textContent = sLen;
   document.getElementById("s-depth").textContent = sDepth;
 
-  const logEl = document.getElementById("log");
-  logEl.innerHTML = logHtml;
-  logEl.scrollTop = logEl.scrollHeight;
+  if (dsAlgo && !compareMode) {
+    dsItems = simDsItems;
+    dsNextId = simDsNextId;
+    dsPopPending = false;
+    dsPendingSortId = null;
+    if (dsSortTimer) { clearTimeout(dsSortTimer); dsSortTimer = null; }
+    dsRender(null);
+  }
+
+  if (sLen !== "—") {
+    updateCharRunner(tx, ty, true);
+  } else {
+    const char = document.getElementById("char-runner");
+    if (char) char.style.display = "none";
+  }
 
   stepIdx = targetIdx;
   updateProgressBar();
@@ -1114,7 +1604,49 @@ function stepBack() {
   if (!steps || steps.length === 0) return;
   if (stepIdx <= 0) return;
   if (running) pauseRun();
+
+  const stepToUndo = steps[stepIdx - 1];
+
+  let undoFr_fromRect = null;
+  let undoFr_html = null;
+
+  if (dsAlgo && !compareMode && stepToUndo.t === "Fr") {
+    const item = dsItems.find(i => i.x === stepToUndo.x && i.y === stepToUndo.y);
+    if (item) {
+      const el = document.getElementById(`ds-item-${item.id}`);
+      if (el) {
+        undoFr_fromRect = el.getBoundingClientRect();
+        undoFr_html = el.innerHTML;
+      }
+    }
+  }
+
   fastForwardTo(stepIdx - 1);
+
+  if (dsAlgo && !compareMode) {
+    const cellEl = document.getElementById(`c_${stepToUndo.x}_${stepToUndo.y}`);
+    if (cellEl) {
+      if (stepToUndo.t === "E") {
+        const fR = cellEl.getBoundingClientRect();
+        let tR;
+        const item = dsItems.find(i => i.x === stepToUndo.x && i.y === stepToUndo.y);
+        if (item) {
+          const newEl = document.getElementById(`ds-item-${item.id}`);
+          if (newEl) tR = newEl.getBoundingClientRect();
+        }
+        if (!tR) {
+          const track = document.getElementById('ds-track');
+          if (track) tR = track.getBoundingClientRect();
+        }
+        if (tR) {
+          spawnFlyingNode(fR, tR, `<div class="ds-coord">(${stepToUndo.x},${stepToUndo.y})</div>`, true);
+        }
+      } else if (stepToUndo.t === "Fr" && undoFr_fromRect) {
+        const tR = cellEl.getBoundingClientRect();
+        spawnFlyingNode(undoFr_fromRect, tR, undoFr_html, false);
+      }
+    }
+  }
 }
 
 // ═══════════════════════════════════════
@@ -1147,6 +1679,9 @@ function toggleCompareMode() {
     singleStats.style.display = "none";
     singleProg.style.display = "none";
     cmpProgSec.style.display = "block";
+    // Hide DS visualizer in compare mode
+    const dsSec = document.getElementById('ds-vis-sec');
+    if (dsSec) dsSec.style.display = 'none';
     btn.textContent = "✕ Thoát so sánh";
     btn.classList.add("active");
 

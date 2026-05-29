@@ -12,7 +12,9 @@
   <div class="bg-flare"></div>
   <header>
     <div class="brand">
-      <div class="brand-icon">🗺</div>
+      <div class="brand-icon">
+        <img src="img/logo.png" alt="Pathfinding Visualizer Logo">
+      </div>
       <div class="brand-text">
         <h1>Pathfinding Visualizer</h1>
         <p>INTERACTIVE SEARCH ALGORITHM EXPLORER</p>
@@ -96,79 +98,7 @@
         <div class="draw-grid" id="draw-modes"></div>
       </div>
 
-      <div class="sep"></div>
 
-      <!-- Algorithm (single mode) -->
-      <div class="sec" id="algo-sec">
-        <div class="sec-title">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <circle cx="6" cy="6" r="5" stroke="currentColor" />
-            <path d="M6 3v3l2 2" stroke="currentColor" stroke-linecap="round" />
-          </svg>
-          Thuật toán
-        </div>
-        <select id="algo" onchange="onAlgoChange()">
-          <option value="BFS">BFS — Breadth-First Search</option>
-          <option value="DFS">DFS — Depth-First Search</option>
-          <option value="UCS">UCS — Uniform-Cost Search</option>
-          <option value="DLS">DLS — Depth-Limited Search</option>
-          <option value="IDS">IDS — Iterative Deepening DLS</option>
-          <option value="GBFS">GBFS — Greedy Best-First</option>
-          <option value="Astar" selected>A★ — A-Star Search</option>
-        </select>
-        <div id="algo-desc" class="algo-desc"></div>
-        <div id="dls-p" class="extra-params" style="display: none">
-          <span class="tc-label">Độ sâu cần duyệt:</span>
-          <div style="display: flex; align-items: center; gap: 10px">
-            <input type="number" id="dls-lim" value="15" min="1" max="999" class="tf" style="width: 70px" />
-            <label style="
-                  display: flex;
-                  align-items: center;
-                  gap: 4px;
-                  font-size: 0.8rem;
-                  color: var(--muted);
-                  cursor: pointer;
-                ">
-              <input type="checkbox" id="dls-auto" onchange="
-                    document.getElementById('dls-lim').disabled = this.checked
-                  " />
-              Tới đích
-            </label>
-          </div>
-        </div>
-        <div id="h-p" class="extra-params" style="display: none">
-          <label>Hàm ước lượng</label>
-          <select id="htype">
-            <option value="0">Manhattan Distance</option>
-            <option value="1">Euclidean Distance</option>
-            <option value="2">Tie-breaking (Manhattan × (1+p))</option>
-            <option value="3">Landmark Heuristic (ALT)</option>
-          </select>
-          <label>Hệ số nhân</label>
-          <input type="number" id="hmul" value="1.0" min="0.1" max="20" step="0.1" />
-        </div>
-      </div>
-
-      <!-- Compare Algorithm Select (hidden by default) -->
-      <div class="sec" id="cmp-sel-sec" style="display: none">
-        <div class="sec-title">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M1 6h10M6 1v10" stroke="currentColor" stroke-linecap="round" />
-          </svg>
-          Cấu hình so sánh
-        </div>
-        <div id="cmp-algo-checks"></div>
-        <div style="
-              font-size: 0.62rem;
-              color: var(--muted);
-              margin-top: 6px;
-              line-height: 1.4;
-            ">
-          Thêm 2–7 cấu hình thuật toán và Heuristic khác nhau để chạy song song
-        </div>
-      </div>
-
-      <div class="sep"></div>
 
       <!-- Speed -->
       <div class="sec">
@@ -188,6 +118,53 @@
             ">
           <span>Chậm</span><span>Nhanh</span>
         </div>
+    </div>
+
+      <div class="sep"></div>
+
+      <!-- Legend -->
+      <div class="sec">
+        <div class="sec-title">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-linecap="round"/>
+          </svg>
+          Chú giải
+        </div>
+        <div class="legend" style="flex-direction: column; align-items: flex-start; margin-left: 0;">
+          <div class="leg-item">
+            <div class="leg-dot" style="background: var(--vis-bg); border: 1.5px solid var(--vis-border); border-radius: 3px;"></div>
+            Đã duyệt
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: var(--front-bg); border: 1.5px solid var(--front-border); border-radius: 3px;"></div>
+            Biên
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: var(--path-bg); border: 1.5px solid var(--path-border); border-radius: 3px;"></div>
+            Đường đi
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: #22c55e; border-radius: 50%"></div>
+            Xuất phát
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: #ef4444; border-radius: 50%"></div>
+            Đích đến
+          </div>
+
+          <!-- f/g/h/d label toggle -->
+          <label class="lbl-toggle" title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)" style="margin-left: 0; margin-top: 8px;">
+            <input type="checkbox" id="chk-labels" onchange="toggleSingleLabels()" />
+            Hiện
+            <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="color: #fbbf24; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">f</span>
+            <span style="color: var(--muted); font-size: 0.6rem">/</span>
+            <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="color: #34d399; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">g</span>
+            <span style="color: var(--muted); font-size: 0.6rem">/</span>
+            <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="color: #60a5fa; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">h</span>
+            <span style="color: var(--muted); font-size: 0.6rem">/</span>
+            <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="color: #f472b6; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">d</span>
+          </label>
+        </div>
       </div>
     </div>
     <!-- /left panel -->
@@ -203,6 +180,24 @@
           ">
         <div class="grid-wrap">
           <div id="grid"></div>
+        </div>
+
+        <!-- Data Structure Visualizer -->
+        <div class="sec" id="ds-vis-sec" style="display:none; padding: 10px 16px; margin: 0 24px 12px 24px; border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow-3d); background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px);">
+          <div class="sec-title" style="margin-bottom: 6px;">
+            <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+              <rect x="1" y="1" width="10" height="2.5" rx="1" stroke="currentColor"/>
+              <rect x="1" y="4.8" width="10" height="2.5" rx="1" stroke="currentColor"/>
+              <rect x="1" y="8.5" width="10" height="2.5" rx="1" stroke="currentColor"/>
+            </svg>
+            <span id="ds-vis-label">Queue</span>
+            <span class="ds-size-badge" id="ds-size-badge">0</span>
+          </div>
+          <div class="ds-track-wrap" style="margin-bottom: 0; padding-bottom: 2px;">
+            <div class="ds-track" id="ds-track" style="min-height: 40px; padding: 4px;">
+              <span class="ds-empty">chưa chạy…</span>
+            </div>
+          </div>
         </div>
 
         <div class="playbar">
@@ -228,73 +223,7 @@
 
           <div class="playbar-spacer"></div>
 
-          <div class="legend">
-            <div class="leg-item">
-              <div class="leg-dot" style="
-                    background: var(--vis-bg);
-                    border: 1.5px solid var(--vis-border);
-                    border-radius: 3px;
-                  "></div>
-              Đã duyệt
-            </div>
-            <div class="leg-item">
-              <div class="leg-dot" style="
-                    background: var(--front-bg);
-                    border: 1.5px solid var(--front-border);
-                    border-radius: 3px;
-                  "></div>
-              Biên
-            </div>
-            <div class="leg-item">
-              <div class="leg-dot" style="
-                    background: var(--path-bg);
-                    border: 1.5px solid var(--path-border);
-                    border-radius: 3px;
-                  "></div>
-              Đường đi
-            </div>
-            <div class="leg-item">
-              <div class="leg-dot" style="background: #22c55e; border-radius: 50%"></div>
-              Xuất phát
-            </div>
-            <div class="leg-item">
-              <div class="leg-dot" style="background: #ef4444; border-radius: 50%"></div>
-              Đích đến
-            </div>
 
-            <!-- f/g/h/d label toggle -->
-            <label class="lbl-toggle" title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)">
-              <input type="checkbox" id="chk-labels" onchange="toggleSingleLabels()" />
-              Hiện
-              <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="
-                    color: #fbbf24;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">f</span>
-              <span style="color: var(--muted); font-size: 0.6rem">/</span>
-              <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="
-                    color: #34d399;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">g</span>
-              <span style="color: var(--muted); font-size: 0.6rem">/</span>
-              <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="
-                    color: #60a5fa;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">h</span>
-              <span style="color: var(--muted); font-size: 0.6rem">/</span>
-              <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="
-                    color: #f472b6;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">d</span>
-            </label>
-          </div>
         </div>
       </div>
 
@@ -398,35 +327,79 @@
 
     <!-- ── RIGHT PANEL ── -->
     <div class="panel panel-r">
-      <!-- Statistics -->
-      <div class="sec" id="single-stats">
+      <!-- Algorithm (single mode) -->
+      <div class="sec" id="algo-sec">
         <div class="sec-title">
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <rect x="1" y="7" width="2" height="4" rx=".5" fill="currentColor" />
-            <rect x="5" y="4" width="2" height="7" rx=".5" fill="currentColor" />
-            <rect x="9" y="1" width="2" height="10" rx=".5" fill="currentColor" />
+            <circle cx="6" cy="6" r="5" stroke="currentColor" />
+            <path d="M6 3v3l2 2" stroke="currentColor" stroke-linecap="round" />
           </svg>
-          Thống kê
+          Thuật toán
         </div>
-        <div class="stat-card">
-          <div class="stat-lbl">Số nút đã duyệt</div>
-          <div class="stat-val" id="s-exp">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">Chi phí đường đi (g)</div>
-          <div class="stat-val" id="s-cost">—</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-lbl">Số bước đường đi</div>
-          <div class="stat-val" id="s-len">—</div>
-        </div>
-        <div class="stat-card" id="s-depth-card" style="display: none">
-          <div class="stat-lbl">Độ sâu hiện tại</div>
-          <div class="stat-val sm">
-            <span class="depth-badge" id="s-depth">0</span>
+        <select id="algo" onchange="onAlgoChange()">
+          <option value="BFS">BFS — Breadth-First Search</option>
+          <option value="DFS">DFS — Depth-First Search</option>
+          <option value="UCS">UCS — Uniform-Cost Search</option>
+          <option value="DLS">DLS — Depth-Limited Search</option>
+          <option value="IDS">IDS — Iterative Deepening DLS</option>
+          <option value="GBFS">GBFS — Greedy Best-First</option>
+          <option value="Astar" selected>A★ — A-Star Search</option>
+        </select>
+        <div id="algo-desc" class="algo-desc"></div>
+        <div id="dls-p" class="extra-params" style="display: none">
+          <span class="tc-label">Độ sâu cần duyệt:</span>
+          <div style="display: flex; align-items: center; gap: 10px">
+            <input type="number" id="dls-lim" value="15" min="1" max="999" class="tf" style="width: 70px" />
+            <label style="
+                  display: flex;
+                  align-items: center;
+                  gap: 4px;
+                  font-size: 0.8rem;
+                  color: var(--muted);
+                  cursor: pointer;
+                ">
+              <input type="checkbox" id="dls-auto" onchange="
+                    document.getElementById('dls-lim').disabled = this.checked
+                  " />
+              Tới đích
+            </label>
           </div>
         </div>
+        <div id="h-p" class="extra-params" style="display: none">
+          <label>Hàm ước lượng</label>
+          <select id="htype">
+            <option value="0">Manhattan Distance</option>
+            <option value="1">Euclidean Distance</option>
+            <option value="2">Tie-breaking (Manhattan × (1+p))</option>
+            <option value="3">Landmark Heuristic (ALT)</option>
+          </select>
+          <label>Hệ số nhân</label>
+          <input type="number" id="hmul" value="1.0" min="0.1" max="20" step="0.1" />
+        </div>
       </div>
+
+      <!-- Compare Algorithm Select (hidden by default) -->
+      <div class="sec" id="cmp-sel-sec" style="display: none">
+        <div class="sec-title">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M1 6h10M6 1v10" stroke="currentColor" stroke-linecap="round" />
+          </svg>
+          Cấu hình so sánh
+        </div>
+        <div id="cmp-algo-checks"></div>
+        <div style="
+              font-size: 0.62rem;
+              color: var(--muted);
+              margin-top: 6px;
+              line-height: 1.4;
+            ">
+          Thêm 2–7 cấu hình thuật toán và Heuristic khác nhau để chạy song song
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+
 
       <!-- Progress -->
       <div class="sec" id="single-progress">
@@ -439,24 +412,48 @@
         </div>
       </div>
 
+
+
+
       <!-- Compare progress (shown in compare mode) -->
       <div class="sec" id="cmp-progress-sec" style="display: none">
         <div class="sec-title">Tiến độ so sánh</div>
         <div id="cmp-progress-list"></div>
       </div>
 
-      <div class="sep"></div>
-
-      <!-- Expansion Log -->
-      <div class="sec" style="display: flex; flex-direction: column; flex-shrink: 0">
+      <!-- Statistics -->
+      <div class="sec" id="single-stats">
         <div class="sec-title">
           <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M1 2.5h10M1 5.5h7M1 8.5h9" stroke="currentColor" stroke-linecap="round" />
+            <rect x="1" y="7" width="2" height="4" rx=".5" fill="currentColor" />
+            <rect x="5" y="4" width="2" height="7" rx=".5" fill="currentColor" />
+            <rect x="9" y="1" width="2" height="10" rx=".5" fill="currentColor" />
           </svg>
-          Nhật ký mở rộng
+          Thống kê
         </div>
-        <div class="log" id="log"></div>
+        <div style="display: flex; gap: 4px;">
+          <div class="stat-card" style="flex: 1; padding: 6px 4px; text-align: center;">
+            <div class="stat-lbl" style="font-size: 0.5rem; text-align: center;">Duyệt</div>
+            <div class="stat-val" id="s-exp" style="font-size: 0.8rem; margin-top: 2px;">—</div>
+          </div>
+          <div class="stat-card" style="flex: 1; padding: 6px 4px; text-align: center;">
+            <div class="stat-lbl" style="font-size: 0.5rem; text-align: center;">Chi phí</div>
+            <div class="stat-val" id="s-cost" style="font-size: 0.8rem; margin-top: 2px;">—</div>
+          </div>
+          <div class="stat-card" style="flex: 1; padding: 6px 4px; text-align: center;">
+            <div class="stat-lbl" style="font-size: 0.5rem; text-align: center;">Bước</div>
+            <div class="stat-val" id="s-len" style="font-size: 0.8rem; margin-top: 2px;">—</div>
+          </div>
+          <div class="stat-card" id="s-depth-card" style="flex: 1; padding: 6px 4px; text-align: center; display: none;">
+            <div class="stat-lbl" style="font-size: 0.5rem; text-align: center;">Độ sâu</div>
+            <div class="stat-val sm" style="font-size: 0.8rem; margin-top: 2px;">
+              <span class="depth-badge" id="s-depth" style="padding: 0px 4px; font-size: 0.65rem;">0</span>
+            </div>
+          </div>
+        </div>
       </div>
+
+
     </div>
     <!-- /right panel -->
   </div>
