@@ -644,26 +644,28 @@ input[type="range"] {
 }
 .cell-info span {
   font-family: "JetBrains Mono", monospace;
-  font-size: 8px;
-  font-weight: 700;
+  font-size: 7.5px;
+  font-weight: 800;
   line-height: 1;
-  padding: 0px 2px;
-  border-radius: 2px;
+  padding: 2.5px 5px;
+  border-radius: 99px;
   white-space: nowrap;
-  background: rgba(255, 255, 255, 0.8);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  margin-bottom: 1px;
+  color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 .ci-f {
-  color: #fbbf24;
+  background: #fbbf24;
 } /* amber  – total cost f */
 .ci-g {
-  color: #34d399;
+  background: #34d399;
 } /* green  – path cost  g */
 .ci-h {
-  color: #60a5fa;
+  background: #60a5fa;
 } /* blue   – heuristic  h */
 .ci-d {
-  color: #f472b6;
+  background: #f472b6;
 } /* pink   – depth      d */
 
 /* label toggle button */

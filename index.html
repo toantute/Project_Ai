@@ -119,53 +119,6 @@
           <span>Chậm</span><span>Nhanh</span>
         </div>
     </div>
-
-      <div class="sep"></div>
-
-      <!-- Legend -->
-      <div class="sec">
-        <div class="sec-title">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-linecap="round"/>
-          </svg>
-          Chú giải
-        </div>
-        <div class="legend" style="flex-direction: column; align-items: flex-start; margin-left: 0;">
-          <div class="leg-item">
-            <div class="leg-dot" style="background: var(--vis-bg); border: 1.5px solid var(--vis-border); border-radius: 3px;"></div>
-            Đã duyệt
-          </div>
-          <div class="leg-item">
-            <div class="leg-dot" style="background: var(--front-bg); border: 1.5px solid var(--front-border); border-radius: 3px;"></div>
-            Biên
-          </div>
-          <div class="leg-item">
-            <div class="leg-dot" style="background: var(--path-bg); border: 1.5px solid var(--path-border); border-radius: 3px;"></div>
-            Đường đi
-          </div>
-          <div class="leg-item">
-            <div class="leg-dot" style="background: #22c55e; border-radius: 50%"></div>
-            Xuất phát
-          </div>
-          <div class="leg-item">
-            <div class="leg-dot" style="background: #ef4444; border-radius: 50%"></div>
-            Đích đến
-          </div>
-
-          <!-- f/g/h/d label toggle -->
-          <label class="lbl-toggle" title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)" style="margin-left: 0; margin-top: 8px;">
-            <input type="checkbox" id="chk-labels" onchange="toggleSingleLabels()" />
-            Hiện
-            <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="color: #fbbf24; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">f</span>
-            <span style="color: var(--muted); font-size: 0.6rem">/</span>
-            <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="color: #34d399; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">g</span>
-            <span style="color: var(--muted); font-size: 0.6rem">/</span>
-            <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="color: #60a5fa; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">h</span>
-            <span style="color: var(--muted); font-size: 0.6rem">/</span>
-            <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="color: #f472b6; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">d</span>
-          </label>
-        </div>
-      </div>
     </div>
     <!-- /left panel -->
 
@@ -450,6 +403,53 @@
               <span class="depth-badge" id="s-depth" style="padding: 0px 4px; font-size: 0.65rem;">0</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <!-- Legend -->
+      <div class="sec">
+        <div class="sec-title">
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-linecap="round"/>
+          </svg>
+          Chú giải
+        </div>
+        <div class="legend" style="flex-direction: column; align-items: flex-start; margin-left: 0;">
+          <div class="leg-item">
+            <div class="leg-dot" style="background: var(--vis-bg); border: 1.5px solid var(--vis-border); border-radius: 3px;"></div>
+            Đã duyệt
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: var(--front-bg); border: 1.5px solid var(--front-border); border-radius: 3px;"></div>
+            Biên
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: var(--path-bg); border: 1.5px solid var(--path-border); border-radius: 3px;"></div>
+            Đường đi
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: #22c55e; border-radius: 50%"></div>
+            Xuất phát
+          </div>
+          <div class="leg-item">
+            <div class="leg-dot" style="background: #ef4444; border-radius: 50%"></div>
+            Đích đến
+          </div>
+
+          <!-- f/g/h/d label toggle -->
+          <label class="lbl-toggle" title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)" style="margin-left: 0; margin-top: 8px;">
+            <input type="checkbox" id="chk-labels" onchange="toggleSingleLabels()" />
+            Hiện
+            <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="color: #fbbf24; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">f</span>
+            <span style="color: var(--muted); font-size: 0.6rem">/</span>
+            <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="color: #34d399; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">g</span>
+            <span style="color: var(--muted); font-size: 0.6rem">/</span>
+            <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="color: #60a5fa; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">h</span>
+            <span style="color: var(--muted); font-size: 0.6rem">/</span>
+            <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="color: #f472b6; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">d</span>
+          </label>
         </div>
       </div>
 

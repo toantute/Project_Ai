@@ -456,23 +456,22 @@ function algoGBFS(ht, mul) {
     vis = A2(false),
     par = A2(null);
   const pq = new Heap((a, b) => {
-    if (a.f !== b.f) return a.f - b.f;
     if (a.h !== b.h) return a.h - b.h;
     return a.rand - b.rand;
   });
-  dis[sx][sy] = 0;
+  
+  vis[sx][sy] = true;
   par[sx][sy] = [sx, sy];
   
   const startH = heuristic(sx, sy, activeHt, activeMul);
   const startRand = Math.random();
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: startH, h: startH, rand: startRand });
+  pq.push({ x: sx, y: sy, d: 0, g: 0, h: startH, rand: startRand });
   
   while (!pq.empty()) {
     const c = pq.pop();
     const { x, y } = c;
-    if (c.g > dis[x][y]) continue;
-    const _eh = c.f - c.g;
-    st.push({ t: "E", x, y, g: c.g, d: c.d, h: c.h !== undefined ? c.h : (_eh >= 0 ? _eh : undefined), f: c.f, rand: c.rand });
+    
+    st.push({ t: "E", x, y, g: c.g, d: c.d, h: c.h, f: c.h, rand: c.rand });
     if (x === tx && y === ty) {
       st.push({ t: "F", path: traceParent(par), g: c.g });
       return st;
@@ -480,18 +479,15 @@ function algoGBFS(ht, mul) {
     for (let i = 0; i < 4; i++) {
       const nx = x + dx[i],
         ny = y + dy[i];
-      if (ok(nx, ny) && M[nx][ny]) {
+      if (ok(nx, ny) && M[nx][ny] && !vis[nx][ny]) {
+        vis[nx][ny] = true;
+        par[nx][ny] = [x, y];
         const ng = c.g + w[M[nx][ny]];
-        if (ng < dis[nx][ny]) {
-          dis[nx][ny] = ng;
-          par[nx][ny] = [x, y];
-          const nd = c.d + 1;
-          const nh = heuristic(nx, ny, activeHt, activeMul);
-          const nf = ng + nh;
-          const nrand = Math.random();
-          pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf, h: nh, rand: nrand });
-          st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nf, d: nd, rand: nrand });
-        }
+        const nd = c.d + 1;
+        const nh = heuristic(nx, ny, activeHt, activeMul);
+        const nrand = Math.random();
+        pq.push({ x: nx, y: ny, d: nd, g: ng, h: nh, rand: nrand });
+        st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nh, d: nd, rand: nrand });
       }
     }
   }
@@ -1876,6 +1872,13 @@ function buildCompareView() {
       </div>`;
     }
 
+    let lblText = 'Queue (FIFO)';
+    if (algo === 'DFS' || algo === 'DLS' || algo === 'IDS') lblText = 'Stack (LIFO)';
+    else if (algo === 'UCS' || algo === 'GBFS' || algo === 'Astar') {
+      const nm = { UCS:'g', GBFS:'h', Astar:'f' };
+      lblText = `PQ (min-${nm[algo]})`;
+    }
+
     card.innerHTML = `
       <div class="cmp-card-header" style="border-top: 3px solid ${color}">
         <span class="cmp-algo-badge" style="background:${color}">${algo === "Astar" ? "A★" : algo}</span>
@@ -1884,6 +1887,17 @@ function buildCompareView() {
       ${extraParams}
       <div class="cmp-grid-wrap" id="cmp-gwrap-${runner.id}">
         <div id="cmp-grid-${runner.id}" class="cmp-mini-grid"></div>
+      </div>
+      <div class="cmp-ds-vis" id="cmp-ds-vis-${runner.id}" style="padding: 4px; margin: 4px 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255, 255, 255, 0.5);">
+         <div style="font-size: 0.6rem; font-weight: 600; margin-bottom: 2px; display: flex; justify-content: space-between;">
+            <span id="cmp-ds-lbl-${runner.id}">${lblText}</span>
+            <span id="cmp-ds-sz-${runner.id}" style="background: var(--primary); color: #fff; border-radius: 10px; padding: 0 4px; font-size: 0.55rem;">0</span>
+         </div>
+         <div class="ds-track-wrap" style="min-height: 24px; padding: 2px; margin: 0;">
+            <div class="ds-track" id="cmp-ds-track-${runner.id}" style="min-height: 24px; padding: 2px;">
+               <span class="ds-empty" style="font-size: 0.55rem">...</span>
+            </div>
+         </div>
       </div>
       <div class="cmp-card-stats">
         <div class="cmp-mini-stat">
@@ -1927,21 +1941,48 @@ function renderMiniGrid(runner) {
   const el = document.getElementById(`cmp-grid-${runner.id}`);
   if (!el) return;
 
-  el.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+  el.style.gridTemplateColumns = `14px repeat(${n}, 1fr)`;
   el.style.display = "grid";
   el.style.gap = "1px";
   el.style.width = "100%";
   el.style.maxWidth = "300px";
-  el.style.aspectRatio = `${n} / ${m}`;
   el.innerHTML = "";
 
   const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
 
+  // Top-left corner
+  const corner = document.createElement("div");
+  corner.style.height = "14px";
+  el.appendChild(corner);
+
+  // Column headers
+  for (let j = 0; j < n; j++) {
+    const lbl = document.createElement("div");
+    lbl.textContent = j;
+    lbl.style.display = "flex";
+    lbl.style.alignItems = "center";
+    lbl.style.justifyContent = "center";
+    lbl.style.fontSize = "8px";
+    lbl.style.color = "var(--muted)";
+    lbl.style.height = "14px";
+    el.appendChild(lbl);
+  }
+
   for (let i = 0; i < m; i++) {
+    // Row header
+    const rlbl = document.createElement("div");
+    rlbl.textContent = i;
+    rlbl.style.display = "flex";
+    rlbl.style.alignItems = "center";
+    rlbl.style.justifyContent = "center";
+    rlbl.style.fontSize = "8px";
+    rlbl.style.color = "var(--muted)";
+    el.appendChild(rlbl);
+
     for (let j = 0; j < n; j++) {
       const d = document.createElement("div");
       const t = M[i][j];
-      d.style.cssText = `position:relative;border-radius:1px;width:100%;height:100%;`;
+      d.style.cssText = `position:relative;border-radius:1px;width:100%;height:100%;aspect-ratio:1/1;`;
       d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
       d.dataset.terrain = t;
       d.id = `${runner.id}_c_${i}_${j}`;
@@ -2002,7 +2043,10 @@ function initCompareState() {
       expandedCount: 0,
       done: false,
       result: null,
+      dsItems: [],
+      dsNextId: 0,
     };
+    cmpDsRender(runner.id);
     const el = document.getElementById(`cmp-status-${runner.id}`);
     if (el) {
       el.textContent = "Ready";
@@ -2103,6 +2147,9 @@ function clearVisCompareAllAction() {
       cmpState[runner.id].expandedCount = 0;
       cmpState[runner.id].done = false;
       cmpState[runner.id].result = null;
+      cmpState[runner.id].dsItems = [];
+      cmpState[runner.id].dsNextId = 0;
+      cmpDsRender(runner.id);
     }
 
     const pb = document.getElementById(`cmp-pbar-${runner.id}`);
@@ -2246,6 +2293,9 @@ function fastForwardCompareTo(targetGlobalStep) {
     let isNoPath = false;
     let isErr = false;
 
+    let simDsItems = [];
+    let simDsNextId = 0;
+
     const cellState = Array.from({ length: m }, () => Array.from({ length: n }, () => ({ state: null, info: null })));
 
     for (let i = 0; i < targetIdx; i++) {
@@ -2254,10 +2304,43 @@ function fastForwardCompareTo(targetGlobalStep) {
         expCount++;
         cellState[step.x][step.y].state = "vis";
         cellState[step.x][step.y].info = null;
+        const dsIdx = simDsItems.findIndex(item => item.x === step.x && item.y === step.y);
+        if (dsIdx !== -1) simDsItems.splice(dsIdx, 1);
       } else if (step.t === "Fr") {
         if (cellState[step.x][step.y].state !== "vis") {
           cellState[step.x][step.y].state = "front";
           cellState[step.x][step.y].info = generateCellInfoHTML(step, state.algo);
+        }
+        const item = {
+          id: simDsNextId++,
+          x: step.x, y: step.y,
+          g: step.g, h: step.h, f: step.f, d: step.d, rand: step.rand
+        };
+        const algo = state.algo;
+        let dsType = 'pqueue';
+        if (algo === 'BFS') dsType = 'queue';
+        else if (['DFS','DLS','IDS'].includes(algo)) dsType = 'stack';
+
+        if (dsType === 'pqueue') {
+          const eIdx = simDsItems.findIndex(i => i.x === item.x && i.y === item.y);
+          if (eIdx !== -1) simDsItems[eIdx] = item;
+          else simDsItems.push(item);
+          simDsItems.sort((a, b) => {
+            if (algo === 'UCS') return (a.g ?? 0) - (b.g ?? 0);
+            if (algo === 'GBFS') return (a.h ?? 0) - (b.h ?? 0);
+            if (algo === 'Astar') {
+              const fa = a.f ?? 0, fb = b.f ?? 0;
+              if (fa !== fb) return fa - fb;
+              const ha = a.h ?? 0, hb = b.h ?? 0;
+              if (ha !== hb) return ha - hb;
+              return (a.rand ?? 0) - (b.rand ?? 0);
+            }
+            return 0;
+          });
+        } else if (dsType === 'queue') {
+          simDsItems.push(item);
+        } else {
+          simDsItems.unshift(item);
         }
       } else if (step.t === "F") {
         step.path.forEach(([x, y]) => {
@@ -2351,6 +2434,9 @@ function fastForwardCompareTo(targetGlobalStep) {
     state.stepIdx = targetIdx;
     state.expandedCount = expCount;
     state.done = (targetIdx >= steps.length) || isFound || isNoPath || isErr;
+    state.dsItems = simDsItems;
+    state.dsNextId = simDsNextId;
+    cmpDsRender(runnerId);
     if (state.done) {
       state.result = {
         found: isFound,
@@ -2408,6 +2494,7 @@ function processCompareStep(runnerId, state, step) {
     }
     const expEl = document.getElementById(`cmp-exp-${runnerId}`);
     if (expEl) expEl.textContent = state.expandedCount;
+    cmpDsPopItem(runnerId, step);
   } else if (step.t === "Fr") {
     const c = cmpCell(runnerId, step.x, step.y);
     if (
@@ -2422,6 +2509,7 @@ function processCompareStep(runnerId, state, step) {
       // Set cell info
       setCellInfo(c, step, algo);
     }
+    cmpDsPushItem(runnerId, step);
   } else if (step.t === "F") {
     step.path.forEach(([x, y], idx) => {
       setTimeout(() => {
@@ -2649,6 +2737,259 @@ function selectAlgo(name) {
   const sel = document.getElementById("algo");
   if (sel) { sel.value = name; }
   onAlgoChange();
+}
+
+// ═══════════════════════════════════════
+//  COMPARE MODE DS VISUALIZER
+// ═══════════════════════════════════════
+function cmpDsPushItem(runnerId, step) {
+  const state = cmpState[runnerId];
+  if (!state || state.done) return;
+  const algo = state.algo;
+  
+  let dsType = 'pqueue';
+  if (algo === 'BFS') dsType = 'queue';
+  else if (['DFS','DLS','IDS'].includes(algo)) dsType = 'stack';
+
+  const item = {
+    id: state.dsNextId++,
+    x: step.x, y: step.y,
+    g: step.g, h: step.h, f: step.f, d: step.d, rand: step.rand
+  };
+
+  if (state.dsSortTimer) {
+    clearTimeout(state.dsSortTimer);
+    state.dsSortTimer = null;
+    state.dsPendingSortId = null;
+  }
+
+  if (dsType === 'pqueue') {
+    const eIdx = state.dsItems.findIndex(i => i.x === item.x && i.y === item.y);
+    if (eIdx !== -1) {
+      item.id = state.dsItems[eIdx].id;
+      state.dsItems[eIdx] = item;
+    } else {
+      state.dsItems.push(item);
+    }
+    
+    state.dsItems.sort((a, b) => {
+      if (algo === 'UCS')   return (a.g ?? 0) - (b.g ?? 0);
+      if (algo === 'GBFS')  return (a.h ?? 0) - (b.h ?? 0);
+      if (algo === 'Astar') {
+        const fa = a.f ?? 0, fb = b.f ?? 0;
+        if (fa !== fb) return fa - fb;
+        const ha = a.h ?? 0, hb = b.h ?? 0;
+        if (ha !== hb) return ha - hb;
+        return (a.rand ?? 0) - (b.rand ?? 0);
+      }
+      return 0;
+    });
+    state.dsPendingSortId = item.id;
+  } else if (dsType === 'queue') {
+    state.dsItems.push(item);
+  } else {
+    state.dsItems.unshift(item);
+  }
+
+  cmpDsRender(runnerId, item.id);
+
+  // Flying animation
+  const cellEl = document.getElementById(`${runnerId}_c_${step.x}_${step.y}`);
+  const track = document.getElementById(`cmp-ds-track-${runnerId}`);
+  if (cellEl && track) {
+    const fR = cellEl.getBoundingClientRect();
+    let targetRect;
+    const newEl = document.getElementById(`cmp-ds-item-${runnerId}-${item.id}`);
+    
+    if (newEl) {
+      targetRect = newEl.getBoundingClientRect();
+    } else {
+      const tR = track.getBoundingClientRect();
+      targetRect = {
+        left: tR.left + tR.width / 2 - 12,
+        top: tR.top + tR.height / 2 - 12,
+        width: 24,
+        height: 24
+      };
+    }
+    
+    spawnFlyingNode(fR, targetRect, `<div style="font-size:0.5rem;font-weight:bold;">(${step.x},${step.y})</div>`, true);
+  }
+
+  if (dsType === 'pqueue') {
+    state.dsSortTimer = setTimeout(() => {
+      state.dsPendingSortId = null;
+      cmpDsRender(runnerId, null, { useFlip: true });
+    }, 600);
+  }
+}
+
+function cmpDsPopItem(runnerId, step) {
+  const state = cmpState[runnerId];
+  if (!state || state.done) return;
+  const idx = state.dsItems.findIndex(i => i.x === step.x && i.y === step.y);
+  if (idx === -1) { cmpDsRender(runnerId, null); return; }
+
+  const track = document.getElementById(`cmp-ds-track-${runnerId}`);
+  const MAX = 4;
+  if (track && idx < MAX) {
+    const itemEls = track.querySelectorAll('.ds-item');
+    const el = itemEls[idx];
+    if (el) {
+      const fR = el.getBoundingClientRect();
+      const cellEl = document.getElementById(`${runnerId}_c_${step.x}_${step.y}`);
+      const tR = cellEl ? cellEl.getBoundingClientRect() : fR;
+      spawnFlyingNode(fR, tR, el.innerHTML, false);
+
+      el.classList.remove('ds-next', 'ds-enter-l', 'ds-enter-r', 'ds-enter-d');
+      el.classList.add('ds-leaving');
+      state.dsPopPending = true;
+      state.dsItems.splice(idx, 1);
+      setTimeout(() => {
+        state.dsPopPending = false;
+        cmpDsRender(runnerId, null);
+      }, 300);
+      return;
+    }
+  }
+  
+  state.dsItems.splice(idx, 1);
+  cmpDsRender(runnerId, null);
+}
+
+function cmpDsRender(runnerId, newItemId = null, opts = {}) {
+  const state = cmpState[runnerId];
+  if (!state || state.dsPopPending) return;
+  
+  const track = document.getElementById(`cmp-ds-track-${runnerId}`);
+  const badge = document.getElementById(`cmp-ds-sz-${runnerId}`);
+  const lbl = document.getElementById(`cmp-ds-lbl-${runnerId}`);
+  if (!track) return;
+  
+  if (badge) badge.textContent = state.dsItems.length;
+
+  const algo = state.algo;
+  let dsType = 'pqueue';
+  if (algo === 'BFS') dsType = 'queue';
+  else if (['DFS','DLS','IDS'].includes(algo)) dsType = 'stack';
+
+  if (lbl) {
+    if (dsType === 'queue') {
+      lbl.textContent = 'Queue (FIFO)';
+    } else if (dsType === 'stack') {
+      lbl.textContent = 'Stack (LIFO)';
+    } else {
+      const nm = { UCS:'g', GBFS:'h', Astar:'f' };
+      lbl.textContent = `PQ (min-${nm[algo]||'?'})`;
+    }
+  }
+
+  if (state.dsItems.length === 0) {
+    track.innerHTML = '<span class="ds-empty" style="font-size: 0.55rem">empty</span>';
+    return;
+  }
+
+  const oldRects = new Map();
+  if (opts.useFlip) {
+    track.querySelectorAll('.ds-item').forEach(el => {
+      const match = el.id.match(/cmp-ds-item-.*?-(\d+)/);
+      if (match) oldRects.set(parseInt(match[1]), el.getBoundingClientRect());
+    });
+  }
+
+  const MAX = 4;
+  let visible = state.dsItems.slice(0, MAX);
+  let overflow = state.dsItems.length - MAX;
+
+  if (state.dsPendingSortId != null) {
+    const pId = state.dsPendingSortId;
+    const pIdx = visible.findIndex(i => i.id === pId);
+    if (pIdx !== -1) {
+      const [pItem] = visible.splice(pIdx, 1);
+      visible.push(pItem);
+    } else {
+      const realIdx = state.dsItems.findIndex(i => i.id === pId);
+      if (realIdx !== -1) {
+        visible.push(state.dsItems[realIdx]);
+        if (visible.length > MAX) visible.splice(MAX - 1, 1);
+      }
+    }
+  }
+
+  track.innerHTML = '';
+  visible.forEach((item, idx) => {
+    const isNew = (item.id === newItemId);
+    const isNext = (idx === 0);
+
+    let enterCls = '';
+    if (isNew) {
+      if (dsType === 'queue') enterCls = ' ds-enter-r';
+      else if (dsType === 'stack') enterCls = ' ds-enter-l';
+      else enterCls = ' ds-enter-d';
+    }
+
+    const el = document.createElement('div');
+    el.className = 'ds-item' + (isNext ? ' ds-next' : '') + enterCls;
+    el.id = `cmp-ds-item-${runnerId}-${item.id}`;
+    el.style.minWidth = '24px';
+    el.style.padding = '2px 4px';
+    el.style.fontSize = '0.55rem';
+    el.style.margin = '0 2px';
+
+    const fmt = v => (v !== undefined && v !== null) ? +v.toFixed(1) : '?';
+    let valStr = '';
+    if (algo === 'BFS' || algo === 'DFS' || algo === 'DLS' || algo === 'IDS') valStr = `d:${item.d ?? '?'}`;
+    else if (algo === 'UCS') valStr = `g:${fmt(item.g)}`;
+    else if (algo === 'GBFS') valStr = `h:${fmt(item.h)}`;
+    else if (algo === 'Astar') valStr = `f:${fmt(item.f)}`;
+
+    el.innerHTML = `<div style="color:var(--text-main);font-weight:600">(${item.x},${item.y})</div>
+                    ${valStr ? `<div style="color:var(--muted);font-size:0.45rem">${valStr}</div>` : ''}`;
+    track.appendChild(el);
+
+    if (idx < visible.length - 1 || overflow > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'ds-sep';
+      sep.style.margin = '0 1px';
+      sep.textContent = '›';
+      track.appendChild(sep);
+    }
+  });
+
+  if (overflow > 0) {
+    const more = document.createElement('div');
+    more.className = 'ds-more';
+    more.style.fontSize = '0.5rem';
+    more.textContent = `+${overflow}`;
+    track.appendChild(more);
+  }
+
+  if (opts.useFlip) {
+    const newEls = Array.from(track.querySelectorAll('.ds-item'));
+    newEls.forEach(el => {
+      const match = el.id.match(/cmp-ds-item-.*?-(\d+)/);
+      if (match) {
+        const oldRect = oldRects.get(parseInt(match[1]));
+        if (oldRect) {
+          const newRect = el.getBoundingClientRect();
+          const dx = oldRect.left - newRect.left;
+          const dy = oldRect.top - newRect.top;
+          if (dx !== 0 || dy !== 0) {
+            el.style.transition = 'none';
+            el.style.transform = `translate(${dx}px, ${dy}px)`;
+            el.style.zIndex = '100';
+            requestAnimationFrame(() => {
+              requestAnimationFrame(() => {
+                el.style.transition = 'transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)';
+                el.style.transform = 'none';
+                setTimeout(() => { el.style.zIndex = ''; }, 300);
+              });
+            });
+          }
+        }
+      }
+    });
+  }
 }
 
 // ═══════════════════════════════════════
