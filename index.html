@@ -99,26 +99,6 @@
       </div>
 
 
-
-      <!-- Speed -->
-      <div class="sec">
-        <div class="sec-title">
-          <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
-            <path d="M1 6h10M7 3l3 3-3 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          Tốc độ
-        </div>
-        <input type="range" id="speed" min="1" max="10" value="6" />
-        <div style="
-              display: flex;
-              justify-content: space-between;
-              font-size: 0.6rem;
-              color: var(--muted);
-              font-weight: 600;
-            ">
-          <span>Chậm</span><span>Nhanh</span>
-        </div>
-    </div>
     </div>
     <!-- /left panel -->
 
@@ -174,6 +154,18 @@
             ✕ Xoá tất cả
           </button>
 
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px; padding-left: 16px; border-left: 1px solid var(--border);">
+            <div style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text); display: flex; align-items: center; gap: 4px;">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M1 6h10M7 3l3 3-3 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Tốc độ
+            </div>
+            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Chậm</span>
+            <input type="range" id="speed" min="1" max="10" value="6" style="width: 70px; margin: 0; height: 4px;" oninput="let c=document.getElementById('speed-cmp'); if(c) c.value=this.value;" />
+            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Nhanh</span>
+          </div>
+
           <div class="playbar-spacer"></div>
 
 
@@ -210,6 +202,18 @@
           <button class="btn btn-sec" onclick="clearAll()">
             ✕ Xoá tất cả
           </button>
+
+          <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px; padding-left: 16px; border-left: 1px solid var(--border);">
+            <div style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text); display: flex; align-items: center; gap: 4px;">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M1 6h10M7 3l3 3-3 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              Tốc độ
+            </div>
+            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Chậm</span>
+            <input type="range" id="speed-cmp" min="1" max="10" value="6" style="width: 70px; margin: 0; height: 4px;" oninput="let s=document.getElementById('speed'); if(s) s.value=this.value;" />
+            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Nhanh</span>
+          </div>
           <div class="playbar-spacer"></div>
           <div class="cmp-legend">
             <div class="leg-item">
@@ -275,6 +279,8 @@
           <div id="cmp-results-table" class="cmp-results-wrap"></div>
         </div>
       </div>
+
+
     </div>
     <!-- /center -->
 
@@ -430,11 +436,11 @@
             Đường đi
           </div>
           <div class="leg-item">
-            <div class="leg-dot" style="background: #22c55e; border-radius: 50%"></div>
+            <div style="font-size: 14px; line-height: 1; width: 14px; text-align: center;">🟢</div>
             Xuất phát
           </div>
           <div class="leg-item">
-            <div class="leg-dot" style="background: #ef4444; border-radius: 50%"></div>
+            <div style="font-size: 14px; line-height: 1; width: 14px; text-align: center;">🏆</div>
             Đích đến
           </div>
 
