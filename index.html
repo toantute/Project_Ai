@@ -154,16 +154,39 @@
             ✕ Xoá tất cả
           </button>
 
-          <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px; padding-left: 16px; border-left: 1px solid var(--border);">
-            <div style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text); display: flex; align-items: center; gap: 4px;">
+          <div class="speed-ctrl" style="margin-left: 8px;">
+            <div class="sc-lbl">
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                 <path d="M1 6h10M7 3l3 3-3 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
               Tốc độ
             </div>
-            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Chậm</span>
-            <input type="range" id="speed" min="1" max="10" value="6" style="width: 70px; margin: 0; height: 4px;" oninput="let c=document.getElementById('speed-cmp'); if(c) c.value=this.value;" />
-            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Nhanh</span>
+            <div class="sc-track">
+              <span>Chậm</span>
+              <input type="range" id="speed" min="1" max="10" value="6" oninput="let c=document.getElementById('speed-cmp'); if(c) c.value=this.value;" />
+              <span>Nhanh</span>
+            </div>
+          </div>
+
+          <div class="speed-ctrl" style="margin-left: 8px;">
+            <div class="sc-lbl" style="cursor: help;" title="Hiển thị thông số trên ô biên">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M2 3h8M2 6h8M2 9h5" stroke="currentColor" stroke-linecap="round" />
+              </svg>
+              Thông số ô
+            </div>
+            <label class="sc-track" style="justify-content: center; gap: 6px; cursor: pointer; padding: 2px 8px; align-items: flex-end; white-space: nowrap;">
+              <input type="checkbox" id="chk-labels" onchange="toggleSingleLabels()" style="margin:0; cursor: pointer; margin-bottom: 2px;" />
+              <span style="font-size: 0.65rem; line-height: 1.2;">
+                <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="color: #fbbf24; border-bottom: 1px dotted;">f</span>
+                <span style="color: var(--muted);">/</span>
+                <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="color: #34d399; border-bottom: 1px dotted;">g</span>
+                <span style="color: var(--muted);">/</span>
+                <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="color: #60a5fa; border-bottom: 1px dotted;">h</span>
+                <span style="color: var(--muted);">/</span>
+                <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="color: #f472b6; border-bottom: 1px dotted;">d</span>
+              </span>
+            </label>
           </div>
 
           <div class="playbar-spacer"></div>
@@ -203,74 +226,42 @@
             ✕ Xoá tất cả
           </button>
 
-          <div style="display: flex; align-items: center; gap: 8px; margin-left: 8px; padding-left: 16px; border-left: 1px solid var(--border);">
-            <div style="font-size: 0.65rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text); display: flex; align-items: center; gap: 4px;">
+          <div class="speed-ctrl" style="margin-left: 8px;">
+            <div class="sc-lbl">
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                 <path d="M1 6h10M7 3l3 3-3 3" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
               Tốc độ
             </div>
-            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Chậm</span>
-            <input type="range" id="speed-cmp" min="1" max="10" value="6" style="width: 70px; margin: 0; height: 4px;" oninput="let s=document.getElementById('speed'); if(s) s.value=this.value;" />
-            <span style="font-size: 0.55rem; color: var(--muted); font-weight: 600;">Nhanh</span>
+            <div class="sc-track">
+              <span>Chậm</span>
+              <input type="range" id="speed-cmp" min="1" max="10" value="6" oninput="let s=document.getElementById('speed'); if(s) s.value=this.value;" />
+              <span>Nhanh</span>
+            </div>
           </div>
-          <div class="playbar-spacer"></div>
-          <div class="cmp-legend">
-            <div class="leg-item">
-              <div class="leg-dot" style="
-                    background: var(--vis-bg);
-                    border: 1.5px solid var(--vis-border);
-                    border-radius: 3px;
-                  "></div>
-              Đã duyệt
-            </div>
-            <div class="leg-item">
-              <div class="leg-dot" style="
-                    background: var(--front-bg);
-                    border: 1.5px solid var(--front-border);
-                    border-radius: 3px;
-                  "></div>
-              Biên
-            </div>
-            <div class="leg-item">
-              <div class="leg-dot"
-                style="background: var(--path-bg); border-radius: 3px; outline: 1px solid var(--path-border)"></div>
-              Đường đi
-            </div>
 
-            <!-- f/g/h/d label toggle for compare mode -->
-            <label class="lbl-toggle" title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)">
-              <input type="checkbox" id="chk-labels-cmp" onchange="toggleCmpLabels()" />
-              Hiện
-              <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="
-                    color: #fbbf24;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">f</span>
-              <span style="color: var(--muted); font-size: 0.6rem">/</span>
-              <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="
-                    color: #34d399;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">g</span>
-              <span style="color: var(--muted); font-size: 0.6rem">/</span>
-              <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="
-                    color: #60a5fa;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">h</span>
-              <span style="color: var(--muted); font-size: 0.6rem">/</span>
-              <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="
-                    color: #f472b6;
-                    font-size: 0.65rem;
-                    border-bottom: 1px dotted;
-                    cursor: help;
-                  ">d</span>
+          <div class="speed-ctrl" style="margin-left: 8px;">
+            <div class="sc-lbl" style="cursor: help;" title="Hiển thị thông số trên ô biên">
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                <path d="M2 3h8M2 6h8M2 9h5" stroke="currentColor" stroke-linecap="round" />
+              </svg>
+              Thông số ô
+            </div>
+            <label class="sc-track" style="justify-content: center; gap: 6px; cursor: pointer; padding: 2px 8px; align-items: flex-end; white-space: nowrap;">
+              <input type="checkbox" id="chk-labels-cmp" onchange="toggleCmpLabels()" style="margin:0; cursor: pointer; margin-bottom: 2px;" />
+              <span style="font-size: 0.65rem; line-height: 1.2;">
+                <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="color: #fbbf24; border-bottom: 1px dotted;">f</span>
+                <span style="color: var(--muted);">/</span>
+                <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="color: #34d399; border-bottom: 1px dotted;">g</span>
+                <span style="color: var(--muted);">/</span>
+                <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="color: #60a5fa; border-bottom: 1px dotted;">h</span>
+                <span style="color: var(--muted);">/</span>
+                <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="color: #f472b6; border-bottom: 1px dotted;">d</span>
+              </span>
             </label>
           </div>
+          <div class="playbar-spacer"></div>
+
         </div>
 
         <!-- Grids container -->
@@ -327,9 +318,9 @@
         <div id="h-p" class="extra-params" style="display: none">
           <label>Hàm ước lượng</label>
           <select id="htype">
-            <option value="0">Manhattan Distance</option>
+            <option value="0">Manhattan</option>
             <option value="1">Euclidean Distance</option>
-            <option value="2">Tie-breaking (Manhattan × (1+p))</option>
+            <option value="2">Manhattan (Tie-Breaking)</option>
             <option value="3">Landmark Heuristic (ALT)</option>
           </select>
           <label>Hệ số nhân</label>
@@ -436,7 +427,7 @@
             Đường đi
           </div>
           <div class="leg-item">
-            <div style="font-size: 14px; line-height: 1; width: 14px; text-align: center;">🟢</div>
+            <div style="font-size: 14px; line-height: 1; width: 14px; text-align: center;">🏠</div>
             Xuất phát
           </div>
           <div class="leg-item">
@@ -444,18 +435,7 @@
             Đích đến
           </div>
 
-          <!-- f/g/h/d label toggle -->
-          <label class="lbl-toggle" title="Hiển thị thông số trên ô biên (Rê chuột vào từng biến để xem giải thích)" style="margin-left: 0; margin-top: 8px;">
-            <input type="checkbox" id="chk-labels" onchange="toggleSingleLabels()" />
-            Hiện
-            <span title="f: Tổng chi phí dự kiến tới đích (f = g + h)" style="color: #fbbf24; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">f</span>
-            <span style="color: var(--muted); font-size: 0.6rem">/</span>
-            <span title="g: Nỗ lực thực tế từ điểm bắt đầu (chi phí)" style="color: #34d399; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">g</span>
-            <span style="color: var(--muted); font-size: 0.6rem">/</span>
-            <span title="h: Heuristic - Khoảng cách ước tính tới đích" style="color: #60a5fa; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">h</span>
-            <span style="color: var(--muted); font-size: 0.6rem">/</span>
-            <span title="d: Số bước đi từ điểm bắt đầu (độ sâu)" style="color: #f472b6; font-size: 0.65rem; border-bottom: 1px dotted; cursor: help;">d</span>
-          </label>
+
         </div>
       </div>
 

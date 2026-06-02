@@ -44,6 +44,8 @@ let steps = [],
 let timer = null,
   running = false;
 let expandedCount = 0;
+let isAnimatingPath = false;
+let pathTimeouts = [];
 
 // ─── Compare Mode State ───────────────
 let compareMode = false;
@@ -125,18 +127,24 @@ function wmin() {
   return Math.min(...w.slice(1, tcnt + 1));
 }
 
-// ─── Tie-breaking heuristic ────────────────────────────────────────────────
-// f_tb = g + h*(1+p), với p = wmin/(D*1000), đủ nhỏ để không vi phạm
-// admissibility nhưng đủ để phá tie, ưu tiên node gần đích hơn.
-function heuristicTieBreak(x, y, base, mul) {
-  const ddx = Math.abs(x - tx), ddy = Math.abs(y - ty);
+// ─── Manhattan heuristic + tie-breaking ─────────────────────────────
+// f_tb = g + h*(1+p)
+// p = wmin/(D*1000), epsilon rất nhỏ để ưu tiên node gần đích hơn
+function heuristicTieBreak(x, y, mul ) {
+  const ddx = Math.abs(x - tx);
+  const ddy = Math.abs(y - ty);
+
   const wm = wmin();
-  const D = Math.abs(sx - tx) + Math.abs(sy - ty) || 1;
-  const p = wm / (D * 1000);
-  const h = base === 1
-    ? Math.sqrt(ddx * ddx + ddy * ddy) * wm
-    : (ddx + ddy) * wm;
-  return h * (1 + p) * (mul || 1);
+
+  // p < minimum_cost_of_one_step / expected_maximum_path_length
+  // Trên lưới m x n, độ dài đường đi tối đa là m * n.
+  // Vì vậy p nên là 1 / (m * n)
+  const p = 1.0 / (m * n);
+
+  // Manhattan heuristic
+  const h = (ddx + ddy) * wm;
+
+  return h * (1 + p) * mul;
 }
 
 let activeLandmarks = [];
@@ -246,7 +254,7 @@ function heuristic(x, y, ht, mul) {
   const ddx = Math.abs(x - tx),
     ddy = Math.abs(y - ty);
   // ht=2: Tie-breaking – dùng heuristicTieBreak với base Manhattan
-  if (ht === 2) return heuristicTieBreak(x, y, 0, mul);
+  if (ht === 2) return heuristicTieBreak(x, y, mul);
   if (ht === 1) return Math.sqrt(ddx * ddx + ddy * ddy) * wmin() * mul;
   return (ddx + ddy) * wmin() * mul;
 }
@@ -616,13 +624,14 @@ function updateTerrainUI() {
   );
   const c = document.getElementById("terrain-ui");
   c.innerHTML = "";
+  const icons = ["🌿","🏜️","🪨","🌊"];
   for (let i = 1; i <= tcnt; i++) {
     const row = document.createElement("div");
     row.className = "tc-row";
     row.innerHTML = `
-      <div class="tc-swatch" style="background:${TCOLORS[i]}"></div>
-      <label>T${i}</label>
-      <input type="number" value="${w[i] || i}" min="1" max="999" style="width:64px;margin:0"
+      <div class="tc-swatch" style="background:${TCOLORS[i]}; display: flex; align-items: center; justify-content: center; font-size: 12px; text-shadow: 0 1px 2px rgba(0,0,0,0.3);">${icons[i-1]}</div>
+      <label style="width: auto; flex: 1;">T${i} · ${TNAMES[i].replace(/T\d · /, "")}</label>
+      <input type="number" value="${w[i] || i}" min="1" max="999" style="width:64px;margin:0;flex:none;"
         onchange="w[${i}]=Math.max(1,parseInt(this.value)||1)">`;
     c.appendChild(row);
   }
@@ -635,7 +644,7 @@ function updateDrawModes() {
   const modes = [
     { id: "wall",  icon: "⬛", label: "Tường" },
     { id: "erase", icon: "◻",  label: "Xoá" },
-    { id: "start", icon: "🟢", label: "Xuất phát" },
+    { id: "start", icon: "🏠", label: "Xuất phát" },
     { id: "end",   icon: "🏆", label: "Đích đến" },
   ];
   for (let i = 1; i <= tcnt; i++) {
@@ -794,13 +803,13 @@ function refreshCell(i, j) {
   if (t === 0) d.classList.add("wall");
   else d.classList.add(`t${t}`);
   const mk = d.querySelector(".cell-mk");
-  if (i === sx && j === sy) mk.textContent = "🟢";
+  if (i === sx && j === sy) mk.textContent = "🏠";
   else if (i === tx && j === ty) mk.textContent = "🏆";
   else mk.textContent = "";
 }
 
 function paintCell(i, j) {
-  if (running) return;
+  if (running || cmpRunning) return;
   const prevSx = sx,
     prevSy = sy,
     prevTx = tx,
@@ -815,17 +824,43 @@ function paintCell(i, j) {
     sy = j;
     if (M[i][j] === 0) M[i][j] = 1;
     refreshCell(prevSx, prevSy);
+    if (compareMode) refreshCompareCellAll(prevSx, prevSy);
   } else if (drawMode === "end") {
     tx = i;
     ty = j;
     if (M[i][j] === 0) M[i][j] = 1;
     refreshCell(prevTx, prevTy);
+    if (compareMode) refreshCompareCellAll(prevTx, prevTy);
   } else if (drawMode.startsWith("t")) {
     const t = parseInt(drawMode.slice(1));
     if ((i === sx && j === sy) || (i === tx && j === ty)) return;
     M[i][j] = t;
   }
   refreshCell(i, j);
+  if (compareMode) refreshCompareCellAll(i, j);
+}
+
+function refreshCompareCellAll(x, y) {
+  if (!cmpRunners) return;
+  cmpRunners.forEach(runner => {
+    const d = cmpCell(runner.id, x, y);
+    if (!d) return;
+    const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
+    const t = M[x][y];
+    d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
+    d.dataset.terrain = t;
+    d.style.outline = "";
+    d.style.boxShadow = "";
+    delete d.dataset.state;
+
+    let mkHtml = "";
+    if (x === sx && y === sy) {
+      mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🏠</span>`;
+    } else if (x === tx && y === ty) {
+      mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🏆</span>`;
+    }
+    d.innerHTML = `<div class="cell-info" style="display:none"></div>${mkHtml}`;
+  });
 }
 
 function genRandom() {
@@ -880,9 +915,13 @@ function startRun() {
 function animateLoop() {
   if (stepIdx >= steps.length) {
     running = false;
-    document.getElementById("btn-run").disabled = false;
-    document.getElementById("btn-step").disabled = false;
-    document.getElementById("btn-pause").disabled = true;
+    if (!isAnimatingPath) {
+      document.getElementById("btn-run").disabled = false;
+      document.getElementById("btn-step").disabled = false;
+      const btnStepBack = document.getElementById("btn-step-back");
+      if (btnStepBack) btnStepBack.disabled = false;
+      document.getElementById("btn-pause").disabled = true;
+    }
     return;
   }
   processStep(steps[stepIdx++]);
@@ -946,6 +985,13 @@ function clearVis() {
   if (timer) clearTimeout(timer);
   timer = null;
   running = false;
+  
+  if (typeof pathTimeouts !== 'undefined') {
+    pathTimeouts.forEach(t => clearTimeout(t));
+    pathTimeouts = [];
+    isAnimatingPath = false;
+  }
+  
   steps = [];
   stepIdx = 0;
   expandedCount = 0;
@@ -955,6 +1001,8 @@ function clearVis() {
   if (dsSortTimer) { clearTimeout(dsSortTimer); dsSortTimer = null; }
   const dsSec = document.getElementById('ds-vis-sec');
   if (dsSec && !compareMode) dsSec.style.display = 'none';
+  const gridEl = document.getElementById("grid");
+  if (gridEl) gridEl.classList.remove("path-found");
   document.querySelectorAll(".cell").forEach((c) => {
     c.classList.remove("vis", "front", "onpath", "popping", "pathpop");
     const ov = c.querySelector(".cell-ov");
@@ -972,10 +1020,14 @@ function clearVis() {
   resetStats();
   document.getElementById("btn-run").disabled = false;
   document.getElementById("btn-step").disabled = false;
+  const btnStepBack = document.getElementById("btn-step-back");
+  if (btnStepBack) btnStepBack.disabled = false;
   document.getElementById("btn-pause").disabled = true;
 }
 
 function clearVisOnly() {
+  const gridEl = document.getElementById("grid");
+  if (gridEl) gridEl.classList.remove("path-found");
   document.querySelectorAll(".cell").forEach((c) => {
     c.classList.remove("vis", "front", "onpath", "popping", "pathpop");
     const ov = c.querySelector(".cell-ov");
@@ -1438,17 +1490,34 @@ function processStep(step) {
     // Push neighbor to DS visualizer
     dsPushItem(step);
   } else if (step.t === "F") {
+    const gridEl = document.getElementById("grid");
+    if (gridEl) gridEl.classList.add("path-found");
+    isAnimatingPath = true;
+    document.getElementById("btn-run").disabled = true;
+    document.getElementById("btn-step").disabled = true;
+    const btnStepBack = document.getElementById("btn-step-back");
+    if (btnStepBack) btnStepBack.disabled = true;
+    document.getElementById("btn-pause").disabled = true;
+
     updateCharRunner(sx, sy, true);
     step.path.forEach(([x, y], idx) => {
-      setTimeout(() => {
+      const t = setTimeout(() => {
         const c = cell(x, y);
         if (!c) return;
         c.classList.remove("front", "vis", "popping");
         c.classList.add("onpath", "pathpop");
-        setTimeout(() => c.classList.remove("pathpop"), 300);
+        setTimeout(() => c.classList.remove("pathpop"), 100);
         
-        updateCharRunner(x, y, false, 300);
-      }, idx * 300);
+        updateCharRunner(x, y, false, 100);
+        
+        if (idx === step.path.length - 1) {
+          isAnimatingPath = false;
+          document.getElementById("btn-run").disabled = false;
+          document.getElementById("btn-step").disabled = false;
+          if (btnStepBack) btnStepBack.disabled = false;
+        }
+      }, idx * 100);
+      pathTimeouts.push(t);
     });
     document.getElementById("s-cost").textContent = step.g;
     document.getElementById("s-len").textContent = step.path.length - 1;
@@ -1576,6 +1645,12 @@ function fastForwardTo(targetIdx) {
   document.getElementById("s-len").textContent = sLen;
   document.getElementById("s-depth").textContent = sDepth;
 
+  const gridEl = document.getElementById("grid");
+  if (gridEl) {
+    if (sCost !== "—") gridEl.classList.add("path-found");
+    else gridEl.classList.remove("path-found");
+  }
+
   if (dsAlgo && !compareMode) {
     dsItems = simDsItems;
     dsNextId = simDsNextId;
@@ -1659,6 +1734,7 @@ function toggleCompareMode() {
   const singleProg = document.getElementById("single-progress");
   const cmpProgSec = document.getElementById("cmp-progress-sec");
   const btn = document.getElementById("btn-compare-toggle");
+  const algoPills = document.getElementById("algo-pills");
 
   if (compareMode) {
     // Stop any running single animation
@@ -1675,6 +1751,7 @@ function toggleCompareMode() {
     singleStats.style.display = "none";
     singleProg.style.display = "none";
     cmpProgSec.style.display = "block";
+    if (algoPills) algoPills.style.display = "none";
     // Hide DS visualizer in compare mode
     const dsSec = document.getElementById('ds-vis-sec');
     if (dsSec) dsSec.style.display = 'none';
@@ -1686,13 +1763,14 @@ function toggleCompareMode() {
   } else {
     stopCompare();
 
-    mainView.style.display = "";
+    mainView.style.display = "flex";
     cmpView.style.display = "none";
     cmpSelSec.style.display = "none";
     algoSec.style.display = "";
     singleStats.style.display = "";
     singleProg.style.display = "";
     cmpProgSec.style.display = "none";
+    if (algoPills) algoPills.style.display = "flex";
     btn.textContent = "⊞ So sánh";
     btn.classList.remove("active");
   }
@@ -1780,7 +1858,11 @@ function changeRunnerAlgo(id, newAlgo) {
     if (runner.mul === undefined) runner.mul = 1.0;
   } else if (newAlgo === "DLS" || newAlgo === "IDS") {
     if (runner.dls === undefined) runner.dls = 15;
-    if (runner.autoDls === undefined) runner.autoDls = false;
+    if (newAlgo === "IDS") {
+      runner.autoDls = true;
+    } else if (runner.autoDls === undefined) {
+      runner.autoDls = false;
+    }
   }
 
   buildCmpAlgoChecks();
@@ -1823,7 +1905,7 @@ function getRunnerDisplayName(runner) {
     const htype = runner.ht || 0;
     let hName = "Manhattan";
     if (htype === 1) hName = "Euclidean";
-    else if (htype === 2) hName = "Tie-breaking";
+    else if (htype === 2) hName = "Manhattan (Tie-Breaking)";
     else if (htype === 3) hName = "Landmarks";
 
     const mul = runner.mul !== undefined ? runner.mul : 1.0;
@@ -1853,7 +1935,7 @@ function buildCompareView() {
     if (algo === "DLS" || algo === "IDS") {
       extraParams = `<div class="cmp-card-params">
         <label>Độ sâu:</label>
-        <input type="number" id="cmp-dls-${runner.id}" value="${runner.dls || 15}" min="1" style="width: 40px" ${runner.autoDls ? "disabled" : ""} onchange="saveRunnerParams('${runner.id}')" />
+        <input type="number" id="cmp-dls-${runner.id}" value="${runner.dls || 15}" min="1" style="width: 50px" ${runner.autoDls ? "disabled" : ""} onchange="saveRunnerParams('${runner.id}')" />
         <label style="display:flex;align-items:center;gap:3px;cursor:pointer">
           <input type="checkbox" id="cmp-auto-${runner.id}" ${runner.autoDls ? "checked" : ""} onchange="saveRunnerParams('${runner.id}')" /> Max
         </label>
@@ -1864,11 +1946,11 @@ function buildCompareView() {
         <select id="cmp-ht-${runner.id}" onchange="saveRunnerParams('${runner.id}')">
           <option value="0" ${runner.ht === 0 ? "selected" : ""}>Manhattan</option>
           <option value="1" ${runner.ht === 1 ? "selected" : ""}>Euclidean</option>
-          <option value="2" ${runner.ht === 2 ? "selected" : ""}>Tie-breaking</option>
+          <option value="2" ${runner.ht === 2 ? "selected" : ""}>Manhattan (Tie-Breaking)</option>
           <option value="3" ${runner.ht === 3 ? "selected" : ""}>Landmarks (ALT)</option>
         </select>
         <label>Mul:</label>
-        <input type="number" id="cmp-hmul-${runner.id}" value="${runner.mul !== undefined ? runner.mul : 1}" step="0.1" style="width: 40px" onchange="saveRunnerParams('${runner.id}')" />
+        <input type="number" id="cmp-hmul-${runner.id}" value="${runner.mul !== undefined ? runner.mul : 1}" step="0.1" style="width: 50px" onchange="saveRunnerParams('${runner.id}')" />
       </div>`;
     }
 
@@ -1888,7 +1970,7 @@ function buildCompareView() {
       <div class="cmp-grid-wrap" id="cmp-gwrap-${runner.id}">
         <div id="cmp-grid-${runner.id}" class="cmp-mini-grid"></div>
       </div>
-      <div class="cmp-ds-vis" id="cmp-ds-vis-${runner.id}" style="padding: 4px; margin: 4px 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255, 255, 255, 0.5);">
+      <div class="cmp-ds-vis" id="cmp-ds-vis-${runner.id}" style="display: none; padding: 4px; margin: 4px 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255, 255, 255, 0.5);">
          <div style="font-size: 0.6rem; font-weight: 600; margin-bottom: 2px; display: flex; justify-content: space-between;">
             <span id="cmp-ds-lbl-${runner.id}">${lblText}</span>
             <span id="cmp-ds-sz-${runner.id}" style="background: var(--primary); color: #fff; border-radius: 10px; padding: 0 4px; font-size: 0.55rem;">0</span>
@@ -1981,6 +2063,7 @@ function renderMiniGrid(runner) {
 
     for (let j = 0; j < n; j++) {
       const d = document.createElement("div");
+      d.className = "cmp-cell";
       const t = M[i][j];
       d.style.cssText = `position:relative;border-radius:1px;width:100%;height:100%;aspect-ratio:1/1;`;
       d.style.background = t === 0 ? "var(--wall)" : tColors[t] || "var(--t1)";
@@ -1989,11 +2072,19 @@ function renderMiniGrid(runner) {
 
       let mkHtml = "";
       if (i === sx && j === sy) {
-        mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🟢</span>`;
+        mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🏠</span>`;
       } else if (i === tx && j === ty) {
-        mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🔴</span>`;
+        mkHtml = `<span style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:clamp(7px, 1.2vw, 16px);line-height:1;margin:auto;z-index:10">🏆</span>`;
       }
       d.innerHTML = `<div class="cell-info"></div>${mkHtml}`;
+      d.addEventListener("mousedown", (e) => {
+        isDown = true;
+        paintCell(i, j);
+        e.preventDefault();
+      });
+      d.addEventListener("mousemove", () => {
+        if (isDown) paintCell(i, j);
+      });
       el.appendChild(d);
     }
   }
@@ -2072,6 +2163,8 @@ function runComparison() {
       el.textContent = "Running…";
       el.className = "cmp-card-status running";
     }
+    const dsVis = document.getElementById(`cmp-ds-vis-${runner.id}`);
+    if (dsVis) dsVis.style.display = "block";
   });
 
   cmpRunning = true;
@@ -2116,6 +2209,8 @@ function resumeCompare() {
       el.textContent = "Running…";
       el.className = "cmp-card-status running";
     }
+    const dsVis = document.getElementById(`cmp-ds-vis-${runner.id}`);
+    if (dsVis) dsVis.style.display = "block";
   });
 
   cmpAnimateLoop();
@@ -2151,6 +2246,8 @@ function clearVisCompareAllAction() {
       cmpState[runner.id].dsNextId = 0;
       cmpDsRender(runner.id);
     }
+    const dsVis = document.getElementById(`cmp-ds-vis-${runner.id}`);
+    if (dsVis) dsVis.style.display = "none";
 
     const pb = document.getElementById(`cmp-pbar-${runner.id}`);
     const pl = document.getElementById(`cmp-plbl-${runner.id}`);
@@ -2247,6 +2344,11 @@ function stepCompare() {
     const pl = document.getElementById(`cmp-plbl-${runnerId}`);
     if (pb) pb.style.width = pct + "%";
     if (pl) pl.textContent = `${state.stepIdx} / ${total}`;
+  });
+
+  cmpRunners.forEach((runner) => {
+    const dsVis = document.getElementById(`cmp-ds-vis-${runner.id}`);
+    if (dsVis) dsVis.style.display = "block";
   });
 
   cmpGlobalStep++;
@@ -2387,9 +2489,9 @@ function fastForwardCompareTo(targetGlobalStep) {
                 const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
                 const t = M[r][c];
                 const baseColor = t === 0 ? "var(--wall)" : (tColors[t] || "var(--t1)");
-                domC.style.background = `linear-gradient(rgba(245,158,11,0.45), rgba(245,158,11,0.45)), ${baseColor}`;
+                domC.style.background = `linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.45)), ${baseColor}`;
                 domC.style.outline = "2.5px solid var(--path-border)";
-                domC.style.boxShadow = "0 0 8px rgba(245,158,11,0.6), inset 0 0 3px rgba(255,255,255,0.25)";
+                domC.style.boxShadow = "0 0 8px rgba(255,255,255,0.6), inset 0 0 3px rgba(255,255,255,0.25)";
               }
             }
             if (st.info) {
@@ -2436,6 +2538,13 @@ function fastForwardCompareTo(targetGlobalStep) {
     state.done = (targetIdx >= steps.length) || isFound || isNoPath || isErr;
     state.dsItems = simDsItems;
     state.dsNextId = simDsNextId;
+    
+    const gridEl = document.getElementById(`cmp-grid-${runnerId}`);
+    if (gridEl) {
+      if (isFound) gridEl.classList.add("path-found");
+      else gridEl.classList.remove("path-found");
+    }
+
     cmpDsRender(runnerId);
     if (state.done) {
       state.result = {
@@ -2469,7 +2578,62 @@ function stepBackCompare() {
   if (!cmpState || Object.keys(cmpState).length === 0) return;
   if (cmpGlobalStep <= 0) return;
   if (cmpRunning) pauseCompare();
+
+  let undoInfo = {};
+  cmpRunners.forEach((runner) => {
+    const state = cmpState[runner.id];
+    if (state) {
+      const undoIdx = cmpGlobalStep - 1;
+      if (undoIdx >= 0 && undoIdx < state.steps.length) {
+        const stepToUndo = state.steps[undoIdx];
+        if (stepToUndo.t === "Fr") {
+          const item = state.dsItems.find(i => i.x === stepToUndo.x && i.y === stepToUndo.y);
+          if (item) {
+            const el = document.getElementById(`cmp-ds-item-${runner.id}-${item.id}`);
+            if (el) {
+              undoInfo[runner.id] = {
+                fromRect: el.getBoundingClientRect(),
+                html: el.innerHTML
+              };
+            }
+          }
+        }
+      }
+    }
+  });
+
   fastForwardCompareTo(cmpGlobalStep - 1);
+
+  cmpRunners.forEach((runner) => {
+    const state = cmpState[runner.id];
+    if (!state) return;
+    const undoIdx = cmpGlobalStep;
+    if (undoIdx < state.steps.length) {
+      const stepToUndo = state.steps[undoIdx];
+      const cellEl = cmpCell(runner.id, stepToUndo.x, stepToUndo.y);
+      if (cellEl) {
+        if (stepToUndo.t === "E") {
+          const fR = cellEl.getBoundingClientRect();
+          let tR;
+          const item = state.dsItems.find(i => i.x === stepToUndo.x && i.y === stepToUndo.y);
+          if (item) {
+            const newEl = document.getElementById(`cmp-ds-item-${runner.id}-${item.id}`);
+            if (newEl) tR = newEl.getBoundingClientRect();
+          }
+          if (!tR) {
+            const track = document.getElementById(`cmp-ds-track-${runner.id}`);
+            if (track) tR = track.getBoundingClientRect();
+          }
+          if (tR) {
+            spawnFlyingNode(fR, tR, `<div style="font-size:0.5rem;font-weight:bold;">(${stepToUndo.x},${stepToUndo.y})</div>`, true);
+          }
+        } else if (stepToUndo.t === "Fr" && undoInfo[runner.id]) {
+          const tR = cellEl.getBoundingClientRect();
+          spawnFlyingNode(undoInfo[runner.id].fromRect, tR, undoInfo[runner.id].html, false);
+        }
+      }
+    }
+  });
 }
 
 function processCompareStep(runnerId, state, step) {
@@ -2511,6 +2675,8 @@ function processCompareStep(runnerId, state, step) {
     }
     cmpDsPushItem(runnerId, step);
   } else if (step.t === "F") {
+    const gridEl = document.getElementById(`cmp-grid-${runnerId}`);
+    if (gridEl) gridEl.classList.add("path-found");
     step.path.forEach(([x, y], idx) => {
       setTimeout(() => {
         const c = cmpCell(runnerId, x, y);
@@ -2518,9 +2684,9 @@ function processCompareStep(runnerId, state, step) {
           const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
           const t = M[x][y];
           const baseColor = t === 0 ? "var(--wall)" : (tColors[t] || "var(--t1)");
-          c.style.background = `linear-gradient(rgba(245,158,11,0.45), rgba(245,158,11,0.45)), ${baseColor}`;
+          c.style.background = `linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.45)), ${baseColor}`;
           c.style.outline = "2.5px solid var(--path-border)";
-          c.style.boxShadow = "0 0 8px rgba(245,158,11,0.6), inset 0 0 3px rgba(255,255,255,0.25)";
+          c.style.boxShadow = "0 0 8px rgba(255,255,255,0.6), inset 0 0 3px rgba(255,255,255,0.25)";
           c.dataset.state = "path";
         }
       }, idx * 25);
@@ -2575,6 +2741,8 @@ function processCompareStep(runnerId, state, step) {
 }
 
 function clearCompareVis(runnerId) {
+  const gridEl = document.getElementById(`cmp-grid-${runnerId}`);
+  if (gridEl) gridEl.classList.remove("path-found");
   const tColors = ["", "var(--t1)", "var(--t2)", "var(--t3)", "var(--t4)"];
   for (let i = 0; i < m; i++) {
     for (let j = 0; j < n; j++) {
@@ -2730,6 +2898,13 @@ function onAlgoChange() {
   document
     .querySelectorAll(".pill")
     .forEach((p) => p.classList.toggle("active", p.dataset.a === a));
+
+  if (a === "IDS") {
+    const dlsAuto = document.getElementById("dls-auto");
+    const dlsLim = document.getElementById("dls-lim");
+    if (dlsAuto) dlsAuto.checked = true;
+    if (dlsLim) dlsLim.disabled = true;
+  }
 }
 
 // Helper để pill header đồng bộ với dropdown và gọi onAlgoChange
