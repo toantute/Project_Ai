@@ -37,7 +37,7 @@ https://toantute.github.io/Project_Ai/
 *Công cụ Vẽ
 
 - Wall/Erase: Vẽ tường ngăn hoặc xóa.
-- Start/End: Đặt điểm bắt đầu (xanh) và kết thúc (đỏ).
+- Start/End: Đặt điểm bắt đầu và kết thúc.
 - T1, T2, T3, T4: Vẽ các vùng di chuyển tốn phí (vàng, cam, nâu, đỏ).
 
 *Thuật toán & Thực thi
@@ -46,7 +46,7 @@ https://toantute.github.io/Project_Ai/
 - Chạy: Tự động tìm đường.
   + Từng bước: Xem quy trình duyệt từng node.
   + Tốc độ: Gạt thanh trượt để chỉnh nhanh/chậm.
-- Reset:Xóa path hoặc Xóa tất cả(trống lưới).
+- Reset: Xóa đường đi hoặc Xóa tất cả(trống lưới).
 
 *Theo dõi kết quả
 
