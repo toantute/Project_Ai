@@ -22,7 +22,7 @@ Dự án mô phỏng và trực quan hóa các thuật toán tìm đường (pat
 
 * Trình duyệt (Chrome, Edge, Firefox, etc)
 
-## mở Web trực tiếp
+## Mở web trực tiếp
 ```bash
 https://toantute.github.io/Project_Ai/
 ```
