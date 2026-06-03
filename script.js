@@ -130,21 +130,17 @@ function wmin() {
 // ─── Manhattan heuristic + tie-breaking ─────────────────────────────
 // f_tb = g + h*(1+p)
 // p = wmin/(D*1000), epsilon rất nhỏ để ưu tiên node gần đích hơn
-function heuristicTieBreak(x, y, mul ) {
+function heuristicTieBreak(x, y, mul) {
+  // 1. Heuristic gốc (Manhattan)
   const ddx = Math.abs(x - tx);
   const ddy = Math.abs(y - ty);
-
   const wm = wmin();
+  const h_base = (ddx + ddy) * wm;
 
-  // p < minimum_cost_of_one_step / expected_maximum_path_length
-  // Trên lưới m x n, độ dài đường đi tối đa là m * n.
-  // Vì vậy p nên là 1 / (m * n)
-  const p = 1.0 / (m * n);
-
-  // Manhattan heuristic
-  const h = (ddx + ddy) * wm;
-
-  return h * (1 + p) * mul;
+  // Return base Manhattan distance.
+  // The tie-breaking is now handled directly by the Priority Queue comparator
+  // which checks the cross-product if activeHt === 2.
+  return h_base * mul;
 }
 
 let activeLandmarks = [];
@@ -514,16 +510,19 @@ function algoAstar(ht, mul) {
     dis = A2(Infinity),
     par = A2(null);
   const pq = new Heap((a, b) => {
-    if (a.f !== b.f) return a.f - b.f;
-    if (a.h !== b.h) return a.h - b.h;
+    const EPS = 1e-9;
+    if (Math.abs(a.f - b.f) > EPS) return a.f - b.f;
+    if (Math.abs(a.h - b.h) > EPS) return a.h - b.h;
+    if (activeHt === 2 && Math.abs(a.cross - b.cross) > EPS) return a.cross - b.cross;
     return a.rand - b.rand;
   });
   dis[sx][sy] = 0;
   par[sx][sy] = [sx, sy];
   
   const startH = heuristic(sx, sy, activeHt, activeMul);
+  const startCross = 0;
   const startRand = Math.random();
-  pq.push({ x: sx, y: sy, d: 0, g: 0, f: startH, h: startH, rand: startRand });
+  pq.push({ x: sx, y: sy, d: 0, g: 0, f: startH, h: startH, cross: startCross, rand: startRand });
   
   while (!pq.empty()) {
     const c = pq.pop();
@@ -546,8 +545,13 @@ function algoAstar(ht, mul) {
           const nd = c.d + 1;
           const nh = heuristic(nx, ny, activeHt, activeMul);
           const nf = ng + nh;
+          const crossX1 = nx - sx;
+          const crossY1 = ny - sy;
+          const crossX2 = tx - sx;
+          const crossY2 = ty - sy;
+          const ncross = Math.abs(crossX1 * crossY2 - crossX2 * crossY1);
           const nrand = Math.random();
-          pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf, h: nh, rand: nrand });
+          pq.push({ x: nx, y: ny, d: nd, g: ng, f: nf, h: nh, cross: ncross, rand: nrand });
           st.push({ t: "Fr", x: nx, y: ny, g: ng, h: nh, f: nf, d: nd, rand: nrand });
         }
       }
@@ -1099,17 +1103,17 @@ function generateCellInfoHTML(step, algo) {
       parts.push(`<span class="ci-d">d:${step.d}</span>`);
   } else if (algo === "UCS") {
     if (step.g !== undefined)
-      parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
+      parts.push(`<span class="ci-g">g:${+step.g.toFixed(2)}</span>`);
   } else if (algo === "GBFS") {
     if (step.h !== undefined)
-      parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
+      parts.push(`<span class="ci-h">h:${+step.h.toFixed(2)}</span>`);
   } else if (algo === "Astar" || algo === "AstarTB") {
     if (step.f !== undefined)
-      parts.push(`<span class="ci-f">f:${+step.f.toFixed(1)}</span>`);
+      parts.push(`<span class="ci-f">f:${+step.f.toFixed(2)}</span>`);
     if (step.g !== undefined)
-      parts.push(`<span class="ci-g">g:${+step.g.toFixed(1)}</span>`);
+      parts.push(`<span class="ci-g">g:${+step.g.toFixed(2)}</span>`);
     if (step.h !== undefined)
-      parts.push(`<span class="ci-h">h:${+step.h.toFixed(1)}</span>`);
+      parts.push(`<span class="ci-h">h:${+step.h.toFixed(2)}</span>`);
   }
 
   if (parts.length === 0) return null;
@@ -1173,20 +1177,28 @@ function dsInit() {
 }
 
 function dsSort(a, b) {
-  if (dsAlgo === 'UCS')   return (a.g ?? 0) - (b.g ?? 0);
-  if (dsAlgo === 'GBFS')  return (a.h ?? 0) - (b.h ?? 0);
+  const EPS = 1e-9;
+  const cmp = (v1, v2) => {
+    const d = (v1 ?? 0) - (v2 ?? 0);
+    return Math.abs(d) > EPS ? d : 0;
+  };
+  
+  if (dsAlgo === 'UCS')   return cmp(a.g, b.g);
+  if (dsAlgo === 'GBFS')  return cmp(a.h, b.h);
   if (dsAlgo === 'Astar') {
-    const fa = a.f ?? 0, fb = b.f ?? 0;
-    if (fa !== fb) return fa - fb;
-    const ha = a.h ?? 0, hb = b.h ?? 0;
-    if (ha !== hb) return ha - hb;
+    const activeHt = parseInt(document.getElementById("htype").value);
+    let d = cmp(a.f, b.f); if (d !== 0) return d;
+    d = cmp(a.h, b.h); if (d !== 0) return d;
+    if (activeHt === 2) {
+      d = cmp(a.cross, b.cross); if (d !== 0) return d;
+    }
     return (a.rand ?? 0) - (b.rand ?? 0);
   }
   return 0;
 }
 
 function dsGetValHTML(item) {
-  const fmt = v => (v !== undefined && v !== null) ? +v.toFixed(1) : '?';
+  const fmt = v => (v !== undefined && v !== null) ? +v.toFixed(2) : '?';
   if (dsAlgo === 'BFS' || dsAlgo === 'DFS' || dsAlgo === 'DLS' || dsAlgo === 'IDS')
     return `<span class="ds-val-d">d:${item.d ?? '?'}</span>`;
   if (dsAlgo === 'UCS')   return `<span class="ds-val-g">g:${fmt(item.g)}</span>`;
